@@ -17,11 +17,3 @@ insert into public.acceptance_grid (gpa_range, mcat_range, acceptance_rate, sour
   ('3.40-3.59', '517-528', 55.6, 'AAMC', 2023),
   ('3.40-3.59', '514-516', 39.1, 'AAMC', 2023),
   ('3.40-3.59', '510-513', 29.3, 'AAMC', 2023);
-
--- Sample salary data
-insert into public.salary_data (specialty, state, median_salary, percentile_25, percentile_75, source_year) values
-  ('Family Medicine', 'TX', 235000, 200000, 275000, 2023),
-  ('Internal Medicine', 'TX', 264000, 225000, 310000, 2023),
-  ('Surgery (General)', 'TX', 402000, 340000, 480000, 2023),
-  ('Pediatrics', 'TX', 244000, 205000, 290000, 2023),
-  ('Emergency Medicine', 'TX', 350000, 295000, 410000, 2023);
