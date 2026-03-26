@@ -13,7 +13,7 @@ A data-driven AI copilot that helps UT Austin premeds navigate medical school ad
 | Frontend | Next.js 14 (App Router) + TypeScript + Tailwind CSS | SSR, SEO, fast development |
 | UI Components | shadcn/ui + Lucide icons | Consistent, accessible component library |
 | Database | Supabase (Postgres + Auth + Storage) | Auth, real-time data, row-level security |
-| AI | Anthropic Claude API (Sonnet) | Admissions advice, essay coaching, interview prep |
+| AI | Anthropic Claude API (Sonnet) | Admissions Q&A, interview prep, contextual guidance |
 | Charts | Recharts | Data visualization for benchmarks and stats |
 | Data Pipeline | Python (pdfplumber, BeautifulSoup, pandas) | PDF parsing, web scraping, CSV transforms |
 | Hosting | Vercel | One-click deploy from GitHub |
@@ -63,12 +63,10 @@ Open [http://localhost:3000](http://localhost:3000).
 │   │   ├── chance/             # Chance calculator
 │   │   ├── chat/               # AI premed advisor
 │   │   ├── dashboard/          # Personal dashboard
-│   │   ├── essays/             # Essay coach
 │   │   ├── interview-prep/     # Mock interviews
 │   │   ├── login/              # Authentication
 │   │   ├── my-list/            # Saved school list
 │   │   ├── onboarding/         # Profile setup wizard
-│   │   ├── salary/             # Salary explorer
 │   │   ├── schools/            # School explorer + detail + compare
 │   │   ├── settings/           # Account settings
 │   │   ├── timeline/           # Application timeline
@@ -87,7 +85,6 @@ Open [http://localhost:3000](http://localhost:3000).
 ├── scripts/                    # Python data pipeline
 │   ├── parse_msar_pdf.py       # PDF parsing
 │   ├── scrape_school_data.py   # Web scraping
-│   ├── load_salary_data.py     # BLS salary import
 │   └── seed_supabase.py        # DB seeding
 └── middleware.ts               # Supabase session management
 ```
@@ -108,10 +105,8 @@ Open [http://localhost:3000](http://localhost:3000).
 | `/schools/compare` | Compare | Side-by-side comparison of 2-4 schools |
 | `/ut-benchmarks` | UT Data | HPO report visualizations and trends |
 | `/my-list` | School List | Saved schools with reach/target/safety tiers |
-| `/essays` | Essay Coach | AI-powered secondary essay feedback |
 | `/interview-prep` | Interview Prep | Mock MMI and traditional interviews |
 | `/timeline` | Timeline | AMCAS/TMDSAS/AACOMAS deadline tracker |
-| `/salary` | Salary Explorer | Physician salary by specialty and region |
 | `/activity-tracker` | Activities | EC hour logging with benchmark indicators |
 | `/chat` | AI Advisor | Claude-powered premed chat assistant |
 | `/settings` | Settings | Profile, notifications, preferences |
@@ -128,7 +123,7 @@ Open [http://localhost:3000](http://localhost:3000).
 - **acceptance_grid** — AAMC/AACOM GPA x MCAT acceptance rates
 - **secondary_prompts** — Secondary essay prompts by school and year
 - **interview_data** — Interview formats and sample questions by school
-- **salary_data** — BLS physician salary data by specialty and region
+- **salary_data** — BLS-style salary rows (optional import; no in-app salary explorer)
 - **saved_schools** — User school lists with tier classification
 - **chat_history** — AI conversation logs with context metadata
 
@@ -142,7 +137,6 @@ Full DDL with indexes and RLS policies: `supabase/schema.sql`
 |--------|------|-------------|
 | AAMC FACTS (A-23) | Acceptance grids | Official |
 | UT Austin HPO Reports | Outcomes by school | Official |
-| BLS Occupational Data | Physician salaries | Official |
 | MSAR Advisor Reports | School prerequisites | Official |
 | Shemmassian / Inspira | Secondary prompts | Community |
 | SDN Interview Feedback | Interview questions | Community |
@@ -156,7 +150,7 @@ Full DDL with indexes and RLS policies: `supabase/schema.sql`
 | Coder 1 — Architect | Auth, layout, onboarding, shared components |
 | Coder 2 — Data Viz | Dashboards, school explorer, charts |
 | Coder 3 — Data Plumber | Scraping, parsing, DB, API endpoints |
-| Coder 4 — AI Whisperer | Claude integration, chat, essays, interview prep |
+| Coder 4 — AI Whisperer | Claude integration, chat, interview prep |
 
 ---
 
