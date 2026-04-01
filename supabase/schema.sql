@@ -23,7 +23,7 @@ create table public.users (
 -- Medical schools
 create table public.schools (
   id serial primary key,
-  name text not null,
+  name text not null unique,
   type text not null check (type in ('MD', 'DO')),
   system text not null check (system in ('TMDSAS', 'AMCAS', 'AACOMAS')),
   state text not null,

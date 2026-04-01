@@ -19,6 +19,7 @@
 # misc
 .DS_Store
 *.pem
+.mcp.json
 
 # debug
 npm-debug.log*
@@ -40,3 +41,6 @@ __pycache__/
 
 # scraper JSON outputs
 scripts/output/*.json
+
+# MSAR PDF data files (large binaries, downloaded separately)
+scripts/data/msar/*.pdf
