@@ -63,15 +63,6 @@ export interface AcceptanceGrid {
   year: number;
 }
 
-export interface SecondaryPrompt {
-  id: number;
-  school_id: number;
-  prompt_text: string;
-  word_limit: number | null;
-  year: number;
-  source: string | null;
-}
-
 export interface InterviewData {
   id: number;
   school_id: number;
@@ -79,17 +70,6 @@ export interface InterviewData {
   sample_questions: string[];
   tips: string | null;
   source: string | null;
-}
-
-export interface SalaryData {
-  id: number;
-  specialty: string;
-  state: string | null;
-  metro_area: string | null;
-  median_salary: number;
-  percentile_25: number;
-  percentile_75: number;
-  source_year: number;
 }
 
 export interface SavedSchool {
