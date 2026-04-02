@@ -38,6 +38,7 @@ next-env.d.ts
 
 # python
 __pycache__/
+.venv/
 
 # scraper JSON outputs
 scripts/output/*.json

@@ -1,21 +1,13 @@
 """
-Parse MSAR and UT HPO PDF reports into structured JSON.
+Parse MSAR advisor report PDFs into structured JSON (Dev A — schools pipeline).
 
-Extracts school stats, GPA/MCAT medians, and acceptance data
-from PDF sources and outputs JSON files for database seeding.
+Outputs school-oriented records for merge/seed scripts. UT HPO reports are
+handled by Dev B: scripts/parse_hpo_reports.py.
 """
 
-import json
 from pathlib import Path
 
 # TODO: import pdfplumber
-
-
-def parse_hpo_report(pdf_path: str) -> list[dict]:
-    """Parse a UT HPO annual report PDF into structured records."""
-    # TODO: Implement PDF parsing with pdfplumber
-    print(f"[STUB] Would parse HPO report: {pdf_path}")
-    return []
 
 
 def parse_msar_data(pdf_path: str) -> list[dict]:
@@ -26,7 +18,7 @@ def parse_msar_data(pdf_path: str) -> list[dict]:
 
 
 def main():
-    print("PDF Parser — UT Austin Premed AI Copilot")
+    print("MSAR PDF Parser — UT Austin Premed AI Copilot")
     print("=" * 50)
 
     # TODO: Add PDF file paths and run parsers
