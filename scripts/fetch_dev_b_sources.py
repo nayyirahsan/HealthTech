@@ -41,6 +41,10 @@ DOWNLOADS: list[tuple[str, str]] = [
         "aamc/A-23_2023.pdf",
     ),
     (
+        "https://www.aamc.org/media/6091/download",
+        "facts/aamc_facts_a23_2023.pdf",
+    ),
+    (
         "https://prehealth.gmu.edu/wp-content/uploads/AACOM-GPA-vs-MCAT-Acceptance-Percentage-2018-2021.pdf",
         "aacom/aacom_grid_aggregated_2018_2021.pdf",
     ),

@@ -169,16 +169,89 @@ def _extract_school_matriculated_records(
     return records
 
 
+def _normalize_band(text: str) -> str | None:
+    s = re.sub(r"\s+", "", (text or "").replace("–", "-").replace("—", "-"))
+    s = s.replace("to", "-")
+    if not s:
+        return None
+    m_gpa = re.match(r"(\d\.\d{2})-(\d\.\d{2})", s)
+    if m_gpa:
+        return f"{m_gpa.group(1)}-{m_gpa.group(2)}"
+    m_mcat = re.match(r"(\d{3})-(\d{3})", s)
+    if m_mcat:
+        return f"{m_mcat.group(1)}-{m_mcat.group(2)}"
+    m_lt_gpa = re.search(r"(?:<|lessthan)(\d\.\d{2})", s.lower())
+    if m_lt_gpa:
+        return f"<{m_lt_gpa.group(1)}"
+    m_lt_mcat = re.search(r"(?:<|lessthan)(\d{3})", s.lower())
+    if m_lt_mcat:
+        return f"<{m_lt_mcat.group(1)}"
+    return None
+
+
+def _extract_distribution_records(
+    rows: list[list[str]],
+    report_year: int,
+    application_system: str,
+    metric: str,
+    section_seen: dict[str, int],
+) -> list[dict]:
+    # In these HPO reports, tables appear in pairs: matriculants first, applicants second.
+    role = "matriculants" if section_seen.get(metric, 0) % 2 == 0 else "applicants"
+    section_seen[metric] = section_seen.get(metric, 0) + 1
+
+    records: list[dict] = []
+    for row in rows[1:]:
+        cleaned = [cell_str(c) for c in row]
+        if not any(cleaned):
+            continue
+        band_raw = cleaned[0]
+        band = _normalize_band(band_raw)
+        if not band:
+            continue
+        n_val = 0
+        for c in cleaned:
+            if re.fullmatch(r"\d{1,5}", c or ""):
+                n_val = int(c)
+                break
+        if n_val < 0:
+            continue
+
+        rec = {
+            "report_year": report_year,
+            "application_system": application_system,
+            "school_name": f"UT Austin HPO {metric.upper()} distribution",
+            "gpa_band": band if metric == "gpa" else None,
+            "mcat_band": band if metric == "mcat" else None,
+            "applicants": n_val if role == "applicants" else 0,
+            "matriculants": n_val if role == "matriculants" else 0,
+            "major": None,
+        }
+        records.append(rec)
+    return records
+
+
 def _table_to_records(
     table: list[list[str]],
     report_year: int,
     application_system: str,
+    section_seen: dict[str, int],
 ) -> list[dict]:
     rows = normalize_table(table)
     if len(rows) < 2:
         return []
     if _looks_like_matriculated_school_table(rows):
         return _extract_school_matriculated_records(rows, report_year, application_system)
+    headers = [cell_str(c).strip().lower() for c in rows[0]]
+    header_join = " ".join(headers)
+    if "gpa" in header_join and "n" in headers:
+        return _extract_distribution_records(
+            rows, report_year, application_system, "gpa", section_seen
+        )
+    if "mcat" in header_join and "n" in headers:
+        return _extract_distribution_records(
+            rows, report_year, application_system, "mcat", section_seen
+        )
 
     header_idx = 0
     headers = [cell_str(c).strip() for c in rows[header_idx]]
@@ -246,8 +319,9 @@ def parse_hpo_pdf(
     application_system: str,
 ) -> list[dict]:
     out: list[dict] = []
+    section_seen: dict[str, int] = {}
     for _, _, raw in iter_page_tables(pdf_path):
-        out.extend(_table_to_records(raw, report_year, application_system))
+        out.extend(_table_to_records(raw, report_year, application_system, section_seen))
     return out
 
 
