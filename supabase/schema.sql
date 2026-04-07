@@ -23,7 +23,7 @@ create table public.users (
 -- Medical schools
 create table public.schools (
   id serial primary key,
-  name text not null,
+  name text not null unique,
   type text not null check (type in ('MD', 'DO')),
   system text not null check (system in ('TMDSAS', 'AMCAS', 'AACOMAS')),
   state text not null,
@@ -65,16 +65,6 @@ create table public.acceptance_grid (
   year int not null
 );
 
--- Secondary essay prompts by school
-create table public.secondary_prompts (
-  id serial primary key,
-  school_id int not null references public.schools(id) on delete cascade,
-  prompt_text text not null,
-  word_limit int,
-  year int not null,
-  source text
-);
-
 -- Interview format and questions by school
 create table public.interview_data (
   id serial primary key,
@@ -83,18 +73,6 @@ create table public.interview_data (
   sample_questions text[],
   tips text,
   source text
-);
-
--- Physician salary data (BLS)
-create table public.salary_data (
-  id serial primary key,
-  specialty text not null,
-  state text,
-  metro_area text,
-  median_salary int not null,
-  percentile_25 int,
-  percentile_75 int,
-  source_year int not null
 );
 
 -- User saved schools
@@ -120,9 +98,7 @@ create table public.chat_history (
 create index idx_ut_outcomes_system on public.ut_outcomes(application_system);
 create index idx_ut_outcomes_school on public.ut_outcomes(school_name);
 create index idx_acceptance_grid_lookup on public.acceptance_grid(gpa_range, mcat_range);
-create index idx_secondary_prompts_school on public.secondary_prompts(school_id);
 create index idx_interview_data_school on public.interview_data(school_id);
-create index idx_salary_specialty on public.salary_data(specialty);
 create index idx_saved_schools_user on public.saved_schools(user_id);
 create index idx_chat_history_user on public.chat_history(user_id);
 
@@ -146,9 +122,5 @@ alter table public.acceptance_grid enable row level security;
 create policy "Acceptance grid is publicly readable" on public.acceptance_grid for select using (true);
 alter table public.ut_outcomes enable row level security;
 create policy "UT outcomes are publicly readable" on public.ut_outcomes for select using (true);
-alter table public.secondary_prompts enable row level security;
-create policy "Secondary prompts are publicly readable" on public.secondary_prompts for select using (true);
 alter table public.interview_data enable row level security;
 create policy "Interview data is publicly readable" on public.interview_data for select using (true);
-alter table public.salary_data enable row level security;
-create policy "Salary data is publicly readable" on public.salary_data for select using (true);

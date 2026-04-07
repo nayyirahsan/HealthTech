@@ -12,6 +12,8 @@ CANONICAL_NAMES: dict[str, str] = {
     "Dell Med": "Dell Medical School",
     "Dell": "Dell Medical School",
     "UT Austin Dell": "Dell Medical School",
+    "University of Texas at Austin Dell Medical School": "Dell Medical School",
+    "University of Texas at Austin Dell Medical School*": "Dell Medical School",
     "Baylor": "Baylor College of Medicine",
     "BCM": "Baylor College of Medicine",
     "Baylor COM": "Baylor College of Medicine",
@@ -86,6 +88,15 @@ CANONICAL_NAMES: dict[str, str] = {
     "Oklahoma": "University of Oklahoma College of Medicine",
     "OU COM": "University of Oklahoma College of Medicine",
 
+    # --- Cross-source name reconciliation ---
+    "Columbia University College of Physicians and Surgeons": "Columbia University Vagelos College of Physicians and Surgeons",
+    "Loyola University of Chicago Stritch School of Medicine": "Loyola University Chicago Stritch School of Medicine",
+    "California University of Science and Medicine": "California University of Science and Medicine School of Medicine",
+    "California University of Science and Medicine- School of Medicine": "California University of Science and Medicine School of Medicine",
+    "California University of Science and Medicine-School of Medicine": "California University of Science and Medicine School of Medicine",
+    "Louisiana State University – Shreveport School of Medicine": "Louisiana State University School of Medicine in Shreveport",
+    "Universidad Central Del Caribe School of Medicine": "Universidad Central del Caribe School of Medicine",
+
     # --- DO Schools ---
     "TCOM": "Texas College of Osteopathic Medicine (UNTHSC)",
     "UNTHSC": "Texas College of Osteopathic Medicine (UNTHSC)",
@@ -95,8 +106,23 @@ CANONICAL_NAMES: dict[str, str] = {
 def normalize(raw: str) -> str:
     """Normalize a school name to its canonical form.
 
-    Strips whitespace, checks the alias map, and returns the canonical
-    name if found — otherwise returns the cleaned original.
+    Cleans whitespace artifacts (newlines, multiple spaces), strips trailing
+    asterisks, checks the alias map, and returns the canonical name if found.
     """
-    cleaned = raw.strip()
-    return CANONICAL_NAMES.get(cleaned, cleaned)
+    import re
+    # Collapse newlines and multiple spaces into single space
+    cleaned = re.sub(r"\s+", " ", raw).strip()
+    # Strip trailing asterisks (Shemmassian uses * for footnotes)
+    cleaned = cleaned.rstrip("*").strip()
+    # Normalize & vs "and"
+    # Check alias map with both forms
+    if cleaned in CANONICAL_NAMES:
+        return CANONICAL_NAMES[cleaned]
+    # Also try with & → and and vice versa
+    alt = cleaned.replace(" & ", " and ")
+    if alt in CANONICAL_NAMES:
+        return CANONICAL_NAMES[alt]
+    alt = cleaned.replace(" and ", " & ")
+    if alt in CANONICAL_NAMES:
+        return CANONICAL_NAMES[alt]
+    return cleaned
