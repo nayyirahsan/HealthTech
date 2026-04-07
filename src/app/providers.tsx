@@ -18,7 +18,7 @@ export function useTheme() { return useContext(ThemeContext); }
 // ── Providers ─────────────────────────────────────────────────────────────────
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>("dark");
+  const [theme, setTheme] = useState<Theme>("light");
 
   // Hydrate from localStorage after mount
   useEffect(() => {

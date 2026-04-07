@@ -23,11 +23,16 @@ export const metadata: Metadata = {
 };
 
 // Inline script runs synchronously before any paint — prevents light-mode flash on refresh.
+// Default is light. Only switch to dark if explicitly stored.
 const FOUC_SCRIPT = `
   try {
     var t = localStorage.getItem('theme');
-    if (t === 'light') document.documentElement.classList.add('light');
-  } catch(e) {}
+    if (t === 'dark') {
+      document.documentElement.classList.remove('light');
+    } else {
+      document.documentElement.classList.add('light');
+    }
+  } catch(e) { document.documentElement.classList.add('light'); }
 `;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

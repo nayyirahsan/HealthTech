@@ -8,6 +8,7 @@ import {
   TrendingDown,
   Minus,
 } from "lucide-react";
+import { useTheme } from "@/app/providers";
 
 // ── Mock Data ────────────────────────────────────────────────────────────────
 
@@ -112,6 +113,9 @@ function StatCard({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
+  const { theme } = useTheme();
+  const emptyFill = theme === "light" ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.05)";
+
   const donutData = [
     { value: ACCEPTANCE_PCT },
     { value: 100 - ACCEPTANCE_PCT },
@@ -216,7 +220,7 @@ export default function DashboardPage() {
                   strokeWidth={0}
                 >
                   <Cell fill="#BF5700" />
-                  <Cell fill="rgba(255,255,255,0.05)" />
+                  <Cell fill={emptyFill} />
                 </Pie>
               </PieChart>
             </ResponsiveContainer>

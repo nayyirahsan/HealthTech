@@ -10,6 +10,7 @@ import {
   Legend,
 } from "recharts";
 import { TrendingUp, TrendingDown, ArrowRight } from "lucide-react";
+import { useTheme } from "@/app/providers";
 
 // ── Mock Data ────────────────────────────────────────────────────────────────
 
@@ -225,6 +226,14 @@ function RadarLegend() {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function UTBenchmarksPage() {
+  const { theme } = useTheme();
+  const isLight = theme === "light";
+  const gridStroke   = isLight ? "rgba(0,0,0,0.10)"  : "rgba(255,255,255,0.08)";
+  const medianStroke = isLight ? "rgba(0,0,0,0.35)"  : "rgba(255,255,255,0.35)";
+  const medianFill   = isLight ? "rgba(0,0,0,0.06)"  : "rgba(255,255,255,0.04)";
+  const tickFill     = isLight ? "rgba(0,0,0,0.55)"  : "rgba(255,255,255,0.40)";
+  const dotFill      = isLight ? "rgba(0,0,0,0.40)"  : "rgba(255,255,255,0.40)";
+
   const aheadCount  = STATS.filter(({ key }) => USER[key] >= UT_MEDIAN[key]).length;
   const behindCount = STATS.length - aheadCount;
 
@@ -265,13 +274,13 @@ export default function UTBenchmarksPage() {
         <ResponsiveContainer width="100%" height={340}>
           <RadarChart data={RADAR_DATA} margin={{ top: 10, right: 30, bottom: 10, left: 30 }}>
             <PolarGrid
-              stroke="rgba(255,255,255,0.08)"
+              stroke={gridStroke}
               gridType="polygon"
             />
             <PolarAngleAxis
               dataKey="axis"
               tick={{
-                fill: "rgba(255,255,255,0.4)",
+                fill: tickFill,
                 fontSize: 11,
                 fontFamily: "var(--font-geist-sans)",
                 fontWeight: 500,
@@ -282,10 +291,10 @@ export default function UTBenchmarksPage() {
             <Radar
               name="UT Admitted Median"
               dataKey="median"
-              stroke="rgba(255,255,255,0.35)"
+              stroke={medianStroke}
               strokeWidth={1.5}
-              fill="rgba(255,255,255,0.04)"
-              dot={<CustomRadarDot fill="rgba(255,255,255,0.4)" />}
+              fill={medianFill}
+              dot={<CustomRadarDot fill={dotFill} />}
             />
             {/* User */}
             <Radar

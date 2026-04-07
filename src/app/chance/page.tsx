@@ -301,7 +301,7 @@ export default function ChancePage() {
               key={s.id}
               onMouseEnter={() => setHoveredId(s.id)}
               onMouseLeave={() => setHoveredId(null)}
-              className="relative rounded-lg p-2 flex flex-col items-center justify-center gap-0.5 min-h-[60px] border border-white/[0.08] hover:border-white/30 hover:scale-105 focus:outline-none"
+              className="prob-cell relative rounded-lg p-2 flex flex-col items-center justify-center gap-0.5 min-h-[60px] border border-white/[0.08] hover:border-white/30 hover:scale-105 focus:outline-none"
               style={{
                 backgroundColor: probBg(s.probability),
                 transition: "background-color 0.35s ease, border-color 0.15s ease, transform 0.1s ease",

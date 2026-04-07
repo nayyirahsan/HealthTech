@@ -444,7 +444,7 @@ function SchoolDrawer({ school, onClose }: { school: School | null; onClose: () 
                             return (
                               <td key={mcatBand} className="py-1 px-1">
                                 <div
-                                  className="rounded-md p-2 text-center min-w-[72px]"
+                                  className="heat-cell rounded-md p-2 text-center min-w-[72px]"
                                   style={{ backgroundColor: heatColor(cell.accepted, cell.applied) }}
                                 >
                                   {cell.applied === 0 ? (
