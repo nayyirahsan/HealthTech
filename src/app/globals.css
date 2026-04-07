@@ -2,26 +2,117 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* ── Base tokens (dark default) ─────────────────────────────────────────── */
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+:root {
+  --background: #0F172A;
+  --foreground: #f8fafc;
+  --accent:     #BF5700;
 }
 
 body {
-  color: var(--foreground);
+  color:      var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
 @layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
+  .text-balance { text-wrap: balance; }
 }
+
+/* ── Light mode overrides ────────────────────────────────────────────────── */
+/*
+   Strategy: dark is the default (no class needed). Adding `light` to <html>
+   overrides every hardcoded dark color via CSS specificity — no page files touched.
+*/
+
+/* CSS custom properties */
+html.light {
+  --background: #F8FAFC;
+  --foreground: #0F172A;
+}
+
+html.light body {
+  background: #F8FAFC;
+  color:      #0F172A;
+}
+
+/* ── Solid page backgrounds ── */
+html.light .bg-\[\#0F172A\]  { background-color: #F8FAFC  !important; }
+html.light .bg-\[\#080E1A\]  { background-color: #F1F5F9  !important; }
+html.light .bg-\[\#0D1628\]  { background-color: #FFFFFF  !important; }
+html.light .bg-\[\#0A1120\]  { background-color: #E2E8F0  !important; }
+
+/* ── Card / surface backgrounds (opacity whites → opacity blacks) ── */
+html.light .bg-white\/\[0\.025\] { background-color: rgba(0,0,0,0.018) !important; }
+html.light .bg-white\/\[0\.03\]  { background-color: rgba(0,0,0,0.022) !important; }
+html.light .bg-white\/\[0\.04\]  { background-color: rgba(0,0,0,0.030) !important; }
+html.light .bg-white\/\[0\.05\]  { background-color: rgba(0,0,0,0.038) !important; }
+html.light .bg-white\/\[0\.06\]  { background-color: rgba(0,0,0,0.045) !important; }
+html.light .bg-white\/\[0\.07\]  { background-color: rgba(0,0,0,0.052) !important; }
+html.light .bg-white\/5          { background-color: rgba(0,0,0,0.032) !important; }
+
+/* ── Borders ── */
+html.light .border-white\/\[0\.05\]  { border-color: rgba(0,0,0,0.06)  !important; }
+html.light .border-white\/\[0\.06\]  { border-color: rgba(0,0,0,0.07)  !important; }
+html.light .border-white\/\[0\.07\]  { border-color: rgba(0,0,0,0.08)  !important; }
+html.light .border-white\/\[0\.08\]  { border-color: rgba(0,0,0,0.09)  !important; }
+html.light .border-white\/10         { border-color: rgba(0,0,0,0.10)  !important; }
+html.light .border-white\/\[0\.10\]  { border-color: rgba(0,0,0,0.10)  !important; }
+html.light .border-white\/15         { border-color: rgba(0,0,0,0.14)  !important; }
+html.light .border-white\/20         { border-color: rgba(0,0,0,0.16)  !important; }
+html.light .border-white\/25         { border-color: rgba(0,0,0,0.20)  !important; }
+html.light .border-white\/30         { border-color: rgba(0,0,0,0.24)  !important; }
+html.light .border-white\/40         { border-color: rgba(0,0,0,0.30)  !important; }
+
+/* ── Text ── */
+html.light .text-white     { color: #0F172A                  !important; }
+html.light .text-white\/85 { color: rgba(15,23,42,0.85)      !important; }
+html.light .text-white\/80 { color: rgba(15,23,42,0.80)      !important; }
+html.light .text-white\/75 { color: rgba(15,23,42,0.75)      !important; }
+html.light .text-white\/70 { color: rgba(15,23,42,0.70)      !important; }
+html.light .text-white\/65 { color: rgba(15,23,42,0.65)      !important; }
+html.light .text-white\/60 { color: rgba(15,23,42,0.60)      !important; }
+html.light .text-white\/55 { color: rgba(15,23,42,0.55)      !important; }
+html.light .text-white\/50 { color: rgba(15,23,42,0.50)      !important; }
+html.light .text-white\/45 { color: rgba(15,23,42,0.45)      !important; }
+html.light .text-white\/40 { color: rgba(15,23,42,0.40)      !important; }
+html.light .text-white\/35 { color: rgba(15,23,42,0.35)      !important; }
+html.light .text-white\/30 { color: rgba(15,23,42,0.30)      !important; }
+html.light .text-white\/25 { color: rgba(15,23,42,0.25)      !important; }
+html.light .text-white\/20 { color: rgba(15,23,42,0.20)      !important; }
+html.light .text-white\/15 { color: rgba(15,23,42,0.15)      !important; }
+
+/* ── Exceptions: white text ON solid orange buttons must stay white ── */
+html.light .bg-\[\#BF5700\] .text-white,
+html.light .bg-\[\#BF5700\].text-white       { color: #FFFFFF !important; }
+html.light .bg-\[\#BF5700\] svg,
+html.light .bg-\[\#BF5700\] path             { color: #FFFFFF !important; stroke: currentColor; }
+
+/* ── Hover overrides ── */
+html.light .hover\:bg-white\/\[0\.04\]:hover { background-color: rgba(0,0,0,0.04) !important; }
+html.light .hover\:bg-white\/\[0\.05\]:hover { background-color: rgba(0,0,0,0.05) !important; }
+html.light .hover\:bg-white\/\[0\.06\]:hover { background-color: rgba(0,0,0,0.05) !important; }
+html.light .hover\:bg-white\/5:hover         { background-color: rgba(0,0,0,0.04) !important; }
+html.light .hover\:text-white:hover          { color: #0F172A                     !important; }
+html.light .hover\:text-white\/80:hover      { color: rgba(15,23,42,0.80)         !important; }
+html.light .hover\:text-white\/70:hover      { color: rgba(15,23,42,0.70)         !important; }
+html.light .hover\:text-white\/60:hover      { color: rgba(15,23,42,0.60)         !important; }
+html.light .hover\:text-white\/50:hover      { color: rgba(15,23,42,0.50)         !important; }
+html.light .hover\:border-white\/15:hover    { border-color: rgba(0,0,0,0.14)     !important; }
+html.light .hover\:border-white\/20:hover    { border-color: rgba(0,0,0,0.16)     !important; }
+html.light .hover\:border-white\/25:hover    { border-color: rgba(0,0,0,0.20)     !important; }
+html.light .hover\:border-white\/30:hover    { border-color: rgba(0,0,0,0.24)     !important; }
+
+/* ── Recharts SVG axis/grid in light mode ── */
+html.light .recharts-polar-angle-axis-tick text { fill: rgba(0,0,0,0.45) !important; }
+html.light .recharts-polar-grid-concentric-polygon { stroke: rgba(0,0,0,0.08) !important; }
+html.light .recharts-polar-grid-angle line { stroke: rgba(0,0,0,0.08) !important; }
+
+/* ── Placeholder text ── */
+html.light ::placeholder { color: rgba(15,23,42,0.30) !important; }
+
+/* ── Scrollbar ── */
+html.light ::-webkit-scrollbar-track  { background: #F1F5F9; }
+html.light ::-webkit-scrollbar-thumb  { background: rgba(0,0,0,0.15); border-radius: 4px; }
+html.light ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.25); }

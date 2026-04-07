@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-Deduplicate ut_outcomes JSON: same logical row keeps the entry with highest
-applicants + matriculants (ties keep first).
+Deduplicate and merge ut_outcomes JSON files: same logical row keeps the entry with
+highest applicants + matriculants (ties keep first).
 
-Reads scripts/output/ut_outcomes_hpo.json by default; writes ut_outcomes_merged.json.
+By default merges scripts/output/ut_outcomes_hpo.json plus
+scripts/output/ut_outcomes_facts.json (if present), and writes ut_outcomes_merged.json.
 """
 
 from __future__ import annotations
@@ -44,11 +45,32 @@ def merge_rows(rows: list[dict]) -> list[dict]:
 
 def main() -> None:
     p = argparse.ArgumentParser()
-    p.add_argument("-i", "--input", type=Path, default=_OUTPUT / "ut_outcomes_hpo.json")
+    p.add_argument(
+        "-i",
+        "--input",
+        type=Path,
+        nargs="*",
+        help="Input JSON files (default: ut_outcomes_hpo.json + ut_outcomes_facts.json if present)",
+    )
     p.add_argument("-o", "--output", type=Path, default=_OUTPUT / "ut_outcomes_merged.json")
     args = p.parse_args()
-    with open(args.input, encoding="utf-8") as f:
-        rows = json.load(f)
+    inputs = args.input
+    if not inputs:
+        inputs = [_OUTPUT / "ut_outcomes_hpo.json"]
+        facts = _OUTPUT / "ut_outcomes_facts.json"
+        if facts.exists():
+            inputs.append(facts)
+
+    rows: list[dict] = []
+    for path in inputs:
+        if not path.exists():
+            print(f"Skip missing input: {path}")
+            continue
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, list):
+            raise ValueError(f"{path} must contain a JSON list")
+        rows.extend(data)
     out = merge_rows(rows)
     out.sort(key=lambda r: (r["report_year"], r["application_system"], r["school_name"]))
     with open(args.output, "w", encoding="utf-8") as f:

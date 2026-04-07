@@ -44,6 +44,7 @@ def main() -> None:
     if not args.skip_fetch:
         _run(["fetch_dev_b_sources.py"])
     _run(["parse_hpo_reports.py"])
+    _run(["parse_aamc_facts.py", "--year", "2023", "--system", "AMCAS"])
     _run(["merge_ut_outcomes.py"])
     a23 = _SCRIPTS / "data" / "aamc" / "A-23_2023.pdf"
     aacom = _SCRIPTS / "data" / "aacom" / "aacom_grid_aggregated_2018_2021.pdf"

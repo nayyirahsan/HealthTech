@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
-import { Sidebar } from "@/components/layout/sidebar";
-import { TopNav } from "@/components/layout/top-nav";
+import { Providers }              from "./providers";
+import { Sidebar, BottomTabBar } from "@/components/layout/sidebar";
+import { TopNav }                 from "@/components/layout/top-nav";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -18,26 +19,38 @@ const geistMono = localFont({
 export const metadata: Metadata = {
   title: "UT Austin Premed AI Copilot",
   description:
-    "Data-driven AI copilot helping UT Austin premeds navigate medical school admissions with personalized insights, school matching, and application guidance.",
+    "Data-driven AI copilot helping UT Austin premeds navigate medical school admissions.",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+// Inline script runs synchronously before any paint — prevents light-mode flash on refresh.
+const FOUC_SCRIPT = `
+  try {
+    var t = localStorage.getItem('theme');
+    if (t === 'light') document.documentElement.classList.add('light');
+  } catch(e) {}
+`;
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <div className="flex min-h-screen">
-          <Sidebar />
-          <div className="flex-1 flex flex-col">
-            <TopNav />
-            <main className="flex-1">{children}</main>
+      {/* eslint-disable-next-line @next/next/no-head-element */}
+      <head>
+        {/* FOUC prevention — must be inline, synchronous */}
+        <script dangerouslySetInnerHTML={{ __html: FOUC_SCRIPT }} />
+      </head>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[#0F172A]`}>
+        <Providers>
+          <div className="flex min-h-screen">
+            <Sidebar />
+            <div className="flex-1 flex flex-col min-w-0">
+              <TopNav />
+              <main className="flex-1 pb-16 md:pb-0">
+                {children}
+              </main>
+            </div>
           </div>
-        </div>
+          <BottomTabBar />
+        </Providers>
       </body>
     </html>
   );

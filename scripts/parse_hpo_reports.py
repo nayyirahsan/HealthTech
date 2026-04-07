@@ -63,7 +63,7 @@ def _keep_hpo_record(rec: dict) -> bool:
         return False
     apps = int(rec.get("applicants") or 0)
     mats = int(rec.get("matriculants") or 0)
-    if apps + mats == 0 and not _row_looks_like_school(name):
+    if apps + mats == 0:
         return False
     return True
 
@@ -77,14 +77,181 @@ def _find_col(headers: list[str], options: list[list[str]]) -> int | None:
     return None
 
 
+def _looks_like_matriculated_school_table(rows: list[list[str]]) -> bool:
+    sample = " ".join(" ".join(r) for r in rows[:4]).lower()
+    return (
+        "total # students matriculated" in sample
+        or ("school" in sample and "matriculated" in sample)
+    )
+
+
+def _extract_school_matriculated_records(
+    rows: list[list[str]],
+    report_year: int,
+    application_system: str,
+) -> list[dict]:
+    records: list[dict] = []
+    pending_school: str | None = None
+
+    for row in rows:
+        cleaned = [cell_str(c) for c in row]
+        if not any(cleaned):
+            continue
+
+        # Last numeric-looking cell is typically matriculant count.
+        count_idx: int | None = None
+        count_val = 0
+        for i in range(len(cleaned) - 1, -1, -1):
+            if re.fullmatch(r"\d{1,4}", cleaned[i] or ""):
+                count_idx = i
+                count_val = int(cleaned[i])
+                break
+
+        # Candidate name: longest textual cell (excluding obvious headers/noise).
+        candidate = ""
+        for i, cell in enumerate(cleaned):
+            if count_idx is not None and i == count_idx:
+                continue
+            low = cell.lower().strip()
+            if not cell or low in {"school name", "applied", "matriculated"}:
+                continue
+            if "detalucirtam" in low or "ot detalucirtam loohcs" in low:
+                continue
+            if len(cell) > len(candidate):
+                candidate = cell
+
+        if not candidate and count_idx is None:
+            continue
+
+        # Continuation lines in these PDFs often wrap long school names onto next row.
+        if candidate and count_idx is None:
+            if pending_school:
+                pending_school = f"{pending_school} {candidate}".strip()
+            else:
+                pending_school = candidate
+            continue
+
+        if not candidate and count_idx is not None:
+            # Count without text belongs to previous wrapped school line.
+            candidate = pending_school or ""
+
+        if pending_school and candidate and pending_school not in candidate:
+            candidate = f"{pending_school} {candidate}".strip()
+        pending_school = None
+
+        school = re.sub(r"\s+", " ", candidate).strip(" -")
+        school = re.sub(r"^Total # Students(?: Matriculated)?\s*", "", school, flags=re.I)
+        school = re.sub(r"^School Matriculated to vs Overall GPA Continued\s*", "", school, flags=re.I)
+        if not school or len(school) < 5:
+            continue
+        if school.lower().startswith(("table ", "page ", "continued")):
+            continue
+        if any(
+            x in school.lower()
+            for x in ("data overview", "according to the data", "overall gpa analysis")
+        ):
+            continue
+        if count_val <= 0:
+            continue
+
+        records.append(
+            {
+                "report_year": report_year,
+                "application_system": application_system,
+                "school_name": school,
+                "gpa_band": None,
+                "mcat_band": None,
+                "applicants": 0,
+                "matriculants": count_val,
+                "major": None,
+            }
+        )
+    return records
+
+
+def _normalize_band(text: str) -> str | None:
+    s = re.sub(r"\s+", "", (text or "").replace("–", "-").replace("—", "-"))
+    s = s.replace("to", "-")
+    if not s:
+        return None
+    m_gpa = re.match(r"(\d\.\d{2})-(\d\.\d{2})", s)
+    if m_gpa:
+        return f"{m_gpa.group(1)}-{m_gpa.group(2)}"
+    m_mcat = re.match(r"(\d{3})-(\d{3})", s)
+    if m_mcat:
+        return f"{m_mcat.group(1)}-{m_mcat.group(2)}"
+    m_lt_gpa = re.search(r"(?:<|lessthan)(\d\.\d{2})", s.lower())
+    if m_lt_gpa:
+        return f"<{m_lt_gpa.group(1)}"
+    m_lt_mcat = re.search(r"(?:<|lessthan)(\d{3})", s.lower())
+    if m_lt_mcat:
+        return f"<{m_lt_mcat.group(1)}"
+    return None
+
+
+def _extract_distribution_records(
+    rows: list[list[str]],
+    report_year: int,
+    application_system: str,
+    metric: str,
+    section_seen: dict[str, int],
+) -> list[dict]:
+    # In these HPO reports, tables appear in pairs: matriculants first, applicants second.
+    role = "matriculants" if section_seen.get(metric, 0) % 2 == 0 else "applicants"
+    section_seen[metric] = section_seen.get(metric, 0) + 1
+
+    records: list[dict] = []
+    for row in rows[1:]:
+        cleaned = [cell_str(c) for c in row]
+        if not any(cleaned):
+            continue
+        band_raw = cleaned[0]
+        band = _normalize_band(band_raw)
+        if not band:
+            continue
+        n_val = 0
+        for c in cleaned:
+            if re.fullmatch(r"\d{1,5}", c or ""):
+                n_val = int(c)
+                break
+        if n_val < 0:
+            continue
+
+        rec = {
+            "report_year": report_year,
+            "application_system": application_system,
+            "school_name": f"UT Austin HPO {metric.upper()} distribution",
+            "gpa_band": band if metric == "gpa" else None,
+            "mcat_band": band if metric == "mcat" else None,
+            "applicants": n_val if role == "applicants" else 0,
+            "matriculants": n_val if role == "matriculants" else 0,
+            "major": None,
+        }
+        records.append(rec)
+    return records
+
+
 def _table_to_records(
     table: list[list[str]],
     report_year: int,
     application_system: str,
+    section_seen: dict[str, int],
 ) -> list[dict]:
     rows = normalize_table(table)
     if len(rows) < 2:
         return []
+    if _looks_like_matriculated_school_table(rows):
+        return _extract_school_matriculated_records(rows, report_year, application_system)
+    headers = [cell_str(c).strip().lower() for c in rows[0]]
+    header_join = " ".join(headers)
+    if "gpa" in header_join and "n" in headers:
+        return _extract_distribution_records(
+            rows, report_year, application_system, "gpa", section_seen
+        )
+    if "mcat" in header_join and "n" in headers:
+        return _extract_distribution_records(
+            rows, report_year, application_system, "mcat", section_seen
+        )
 
     header_idx = 0
     headers = [cell_str(c).strip() for c in rows[header_idx]]
@@ -152,8 +319,9 @@ def parse_hpo_pdf(
     application_system: str,
 ) -> list[dict]:
     out: list[dict] = []
+    section_seen: dict[str, int] = {}
     for _, _, raw in iter_page_tables(pdf_path):
-        out.extend(_table_to_records(raw, report_year, application_system))
+        out.extend(_table_to_records(raw, report_year, application_system, section_seen))
     return out
 
 
