@@ -34,7 +34,7 @@ const NAV_ITEMS = [
 
 const BOTTOM_ITEMS = [
   { href: "/timeline",         label: "Timeline",          icon: Calendar  },
-  { href: "/activity-tracker", label: "Activities",        icon: Activity  },
+  { href: "/activities",        label: "Activities",        icon: Activity  },
   { href: "/settings",         label: "Settings",          icon: Settings  },
 ] as const;
 
@@ -71,13 +71,13 @@ export function Sidebar() {
   }
 
   // Don't render until hydrated — avoids width flash
-  if (!mounted) return <div className="hidden md:block w-[220px] shrink-0" />;
+  if (!mounted) return <div className="hidden md:block w-[220px] shrink-0 h-screen sticky top-0" />;
 
   const w = collapsed ? "w-[52px]" : "w-[220px]";
 
   return (
     <aside
-      className={`hidden md:flex ${w} shrink-0 flex-col bg-[#080E1A] border-r border-white/10 min-h-screen transition-[width] duration-200 ease-in-out overflow-hidden`}
+      className={`hidden md:flex ${w} shrink-0 sticky top-0 h-screen flex-col bg-[#080E1A] border-r border-white/10 transition-[width] duration-200 ease-in-out overflow-hidden`}
     >
       {/* Logo */}
       <Link href="/" className="flex items-center gap-2.5 px-3.5 h-12 border-b border-white/10 shrink-0 overflow-hidden">
@@ -93,7 +93,7 @@ export function Sidebar() {
       </Link>
 
       {/* Primary nav */}
-      <nav className="flex-1 py-3 px-2 space-y-0.5 overflow-hidden">
+      <nav className="flex-1 py-3 px-2 space-y-0.5 overflow-y-auto overflow-x-hidden">
         {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(href + "/");
           return (
