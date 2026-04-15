@@ -20,6 +20,7 @@ import {
   Eye,
   Award,
 } from "lucide-react"
+import { userProfile, utMedian } from "@/lib/mock-data"
 
 // ─── Fonts ──────────────────────────────────────────────────────────────────
 
@@ -63,13 +64,25 @@ interface Profile {
 
 const MOCK: Profile = {
   avatar: null,
-  name: "Nayyir Hassan",
-  eid: "nh28492",
-  gradYear: "2026",
-  appCycle: "2026–2027",
-  gpa: { overall: 3.87, science: 3.82 },
-  mcat: { total: 514, cp: 129, cars: 127, bb: 129, ps: 129 },
-  hours: { clinical: 320, research: 150, volunteering: 210, shadowing: 80, leadership: 45 },
+  name: userProfile.fullName,
+  eid: userProfile.eid,
+  gradYear: String(userProfile.graduationYear),
+  appCycle: userProfile.appCycle,
+  gpa: { overall: userProfile.gpa, science: userProfile.scienceGpa },
+  mcat: {
+    total: userProfile.mcat,
+    cp: userProfile.mcatBreakdown.cp,
+    cars: userProfile.mcatBreakdown.cars,
+    bb: userProfile.mcatBreakdown.bb,
+    ps: userProfile.mcatBreakdown.ps,
+  },
+  hours: {
+    clinical: userProfile.clinicalHours,
+    research: userProfile.researchHours,
+    volunteering: userProfile.volunteerHours,
+    shadowing: userProfile.shadowingHours,
+    leadership: userProfile.leadershipHours,
+  },
   personalStatement: `Medicine called to me not from sterile hospital hallways, but from my grandmother's kitchen in Lagos — where she mixed herbs with prayer and fed neighbors who couldn't reach the clinic across town. That early exposure taught me something no textbook could: that healing is fundamentally an act of presence.
 
 As a first-generation pre-med student at UT Austin, I've spent four years translating that lesson into practice. Three hundred hours in the cardiac care unit at Dell Seton Medical Center taught me to read the room before the chart. The patient in Bed 4 who flinched every time nurses mentioned "the procedure" didn't need more clinical information — she needed someone to slow down and sit with her.
@@ -82,11 +95,11 @@ I am applying to medical school to become a physician-scientist who builds bridg
 
 // UT HPO median for admitted applicants (kept consistent with dashboard/ut-benchmarks)
 const HPO_MEDIANS = {
-  clinical: 1200,
-  research: 600,
-  volunteering: 250,
-  shadowing: 120,
-  leadership: 75,
+  clinical: utMedian.clinicalHours,
+  research: utMedian.researchHours,
+  volunteering: utMedian.volunteerHours,
+  shadowing: utMedian.shadowingHours,
+  leadership: utMedian.leadershipHours,
 }
 
 const HOURS_CFG = [

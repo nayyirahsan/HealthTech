@@ -2,10 +2,10 @@
 
 import { useState, useMemo } from "react";
 import { ChevronUp, ChevronDown, ChevronsUpDown, Users } from "lucide-react";
+import { calcProbability, tierFromProb, TIER_LABEL, type Tier } from "@/lib/chance";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type Tier      = "Safety" | "Target" | "Reach";
 type SortDir   = "asc" | "desc" | null;
 type SortKey   = "name" | "probability" | "medianGPA" | "medianMCAT";
 
@@ -87,29 +87,6 @@ const SCHOOLS: School[] = [
   { id: 50, name: "Pacific Northwest University",     abbr: "PNWU",  state: "WA", type: "DO", medianGPA: 3.45, medianMCAT: 499, acceptanceRate: 22.1, inStateTX: false, utApplied: 7,  utAccepted: 2  },
 ];
 
-// ── Probability formula ───────────────────────────────────────────────────────
-// Sigmoid-shaped model: base from national acceptance rate, adjusted for GPA/MCAT delta.
-
-function calcProbability(gpa: number, mcat: number, school: School): number {
-  const gpaDelta  = gpa  - school.medianGPA;
-  const mcatDelta = mcat - school.medianMCAT;
-
-  // Raw score: how many standard deviations above/below median the applicant is
-  const gpaZ  = gpaDelta  / 0.15;   // ~1 SD for GPA in med school context
-  const mcatZ = mcatDelta / 4.5;    // ~1 SD for MCAT
-
-  const z = (gpaZ + mcatZ) / 2;
-
-  // Sigmoid centred on school's acceptance rate
-  const base = school.acceptanceRate / 100;
-  const sigmoid = 1 / (1 + Math.exp(-2.2 * z));
-
-  // Blend base acceptance rate with sigmoid adjustment
-  const raw = base + (sigmoid - 0.5) * 0.6;
-
-  return Math.round(Math.max(1, Math.min(97, raw * 100)));
-}
-
 // ── Color scale ───────────────────────────────────────────────────────────────
 
 function probColor(p: number): string {
@@ -130,16 +107,10 @@ function probBg(p: number): string {
   return "rgba(153,27,27,0.60)";
 }
 
-function tierFromProb(p: number): Tier {
-  if (p >= 40) return "Safety";
-  if (p >= 18) return "Target";
-  return "Reach";
-}
-
 const TIER_CFG: Record<Tier, string> = {
-  Safety: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
-  Target: "text-[#BF5700]   bg-[#BF5700]/10   border-[#BF5700]/25",
-  Reach:  "text-red-400     bg-red-500/10     border-red-500/20",
+  safety: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
+  target: "text-[#BF5700]   bg-[#BF5700]/10   border-[#BF5700]/25",
+  reach:  "text-red-400     bg-red-500/10     border-red-500/20",
 };
 
 // ── UT cohort stat ────────────────────────────────────────────────────────────
@@ -433,7 +404,7 @@ export default function ChancePage() {
                   </td>
                   <td className="px-4 py-2.5">
                     <span className={`text-[11px] px-2 py-0.5 rounded border font-medium ${TIER_CFG[school.tier]}`}>
-                      {school.tier}
+                      {TIER_LABEL[school.tier]}
                     </span>
                   </td>
                 </tr>

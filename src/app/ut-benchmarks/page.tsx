@@ -11,26 +11,27 @@ import {
 } from "recharts";
 import { TrendingUp, TrendingDown, ArrowRight } from "lucide-react";
 import { useTheme } from "@/app/providers";
+import { userProfile, utMedian } from "@/lib/mock-data";
 
 // ── Mock Data ────────────────────────────────────────────────────────────────
 
 const USER = {
-  gpa:            3.75,
-  mcat:           512,
-  clinicalHours:  850,
-  researchHours:  400,
-  volunteerHours: 180,
-  shadowingHours: 90,
+  gpa:            userProfile.gpa,
+  mcat:           userProfile.mcat,
+  clinicalHours:  userProfile.clinicalHours,
+  researchHours:  userProfile.researchHours,
+  volunteerHours: userProfile.volunteerHours,
+  shadowingHours: userProfile.shadowingHours,
 };
 
 // UT HPO median for admitted applicants
 const UT_MEDIAN = {
-  gpa:            3.82,
-  mcat:           513,
-  clinicalHours:  1200,
-  researchHours:  600,
-  volunteerHours: 250,
-  shadowingHours: 120,
+  gpa:            utMedian.gpa,
+  mcat:           utMedian.mcat,
+  clinicalHours:  utMedian.clinicalHours,
+  researchHours:  utMedian.researchHours,
+  volunteerHours: utMedian.volunteerHours,
+  shadowingHours: utMedian.shadowingHours,
 };
 
 // Normalise each axis 0–100 so the radar is comparable across different units.

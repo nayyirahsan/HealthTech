@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import {
   AlertCircle,
@@ -9,36 +10,38 @@ import {
   Minus,
 } from "lucide-react";
 import { useTheme } from "@/app/providers";
+import { getTopSuggestions, daysUntil } from "@/lib/suggestions";
+import { userProfile, utMedian, cycleDates } from "@/lib/mock-data";
+import { calcProbability, tierFromProb, type Tier } from "@/lib/chance";
 
 // ── Mock Data ────────────────────────────────────────────────────────────────
 
 const USER = {
-  name: "Alex",
-  gpa: 3.75,
-  mcat: 512,
-  clinicalHours: 850,
-  researchHours: 400,
+  gpa: userProfile.gpa,
+  mcat: userProfile.mcat,
+  clinicalHours: userProfile.clinicalHours,
+  researchHours: userProfile.researchHours,
 };
 
 const UT_MEDIAN = {
-  gpa: 3.82,
-  mcat: 513,
-  clinicalHours: 1200,
-  researchHours: 600,
+  gpa: utMedian.gpa,
+  mcat: utMedian.mcat,
+  clinicalHours: utMedian.clinicalHours,
+  researchHours: utMedian.researchHours,
 };
 
-const ACCEPTANCE_PCT = 42;
-const DAYS_TO_CYCLE = 50;
-
-const SCHOOLS = [
-  { name: "UT Southwestern",  abbr: "UTSW", tier: "target" as const, pct: 48 },
-  { name: "Baylor COM",       abbr: "BCM",  tier: "reach"  as const, pct: 22 },
-  { name: "Texas A&M COM",    abbr: "TAMU", tier: "target" as const, pct: 51 },
-  { name: "UT Health Houston",abbr: "UTH",  tier: "safety" as const, pct: 67 },
-  { name: "Mayo Clinic Alix", abbr: "MAYO", tier: "reach"  as const, pct: 8  },
+// Featured schools shown on the dashboard. `id` matches /schools/page.tsx so
+// row clicks route to /schools/[id]. Stats are cross-referenced with
+// /chance/page.tsx so probabilities stay consistent across the app.
+const FEATURED_SCHOOLS = [
+  { id: 1, name: "UT Southwestern",   abbr: "UTSW", medianGPA: 3.91, medianMCAT: 521, acceptanceRate: 4.2 },
+  { id: 2, name: "Baylor COM",        abbr: "BCM",  medianGPA: 3.93, medianMCAT: 522, acceptanceRate: 3.1 },
+  { id: 3, name: "Texas A&M COM",     abbr: "TAMU", medianGPA: 3.78, medianMCAT: 512, acceptanceRate: 7.4 },
+  { id: 4, name: "UT Health Houston", abbr: "UTH",  medianGPA: 3.81, medianMCAT: 514, acceptanceRate: 5.8 },
+  { id: 5, name: "Mayo Clinic Alix",  abbr: "MAYO", medianGPA: 3.92, medianMCAT: 522, acceptanceRate: 1.9 },
 ];
 
-const TIER_CFG = {
+const TIER_CFG: Record<Tier, { label: string; bg: string; text: string; border: string }> = {
   reach:  { label: "Reach",  bg: "bg-red-500/15",       text: "text-red-400",    border: "border-red-500/25"       },
   target: { label: "Target", bg: "bg-[#BF5700]/15",     text: "text-[#BF5700]", border: "border-[#BF5700]/30"     },
   safety: { label: "Safety", bg: "bg-emerald-500/15",   text: "text-emerald-400",border: "border-emerald-500/25"  },
@@ -116,9 +119,18 @@ export default function DashboardPage() {
   const { theme } = useTheme();
   const emptyFill = theme === "light" ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.05)";
 
+  const enrichedSchools = FEATURED_SCHOOLS.map((s) => {
+    const pct = calcProbability(USER.gpa, USER.mcat, s);
+    return { ...s, pct, tier: tierFromProb(pct) };
+  });
+  const acceptancePct = Math.round(
+    enrichedSchools.reduce((sum, s) => sum + s.pct, 0) / enrichedSchools.length,
+  );
+  const daysToCycle = daysUntil(cycleDates.tmdsasOpens);
+
   const donutData = [
-    { value: ACCEPTANCE_PCT },
-    { value: 100 - ACCEPTANCE_PCT },
+    { value: acceptancePct },
+    { value: 100 - acceptancePct },
   ];
 
   const stats = [
@@ -156,30 +168,44 @@ export default function DashboardPage() {
     },
   ];
 
-  const reachCount  = SCHOOLS.filter((s) => s.tier === "reach").length;
-  const targetCount = SCHOOLS.filter((s) => s.tier === "target").length;
-  const safetyCount = SCHOOLS.filter((s) => s.tier === "safety").length;
+  const reachCount  = enrichedSchools.filter((s) => s.tier === "reach").length;
+  const targetCount = enrichedSchools.filter((s) => s.tier === "target").length;
+  const safetyCount = enrichedSchools.filter((s) => s.tier === "safety").length;
+
+  const suggestions = getTopSuggestions(USER, UT_MEDIAN, daysToCycle, 2);
 
   return (
     <div className="min-h-full bg-[#0F172A] p-6 space-y-5">
 
-      {/* Alert Banner */}
-      <div className="flex items-center gap-3 bg-[#BF5700]/10 border border-[#BF5700]/25 rounded-lg px-4 py-3 cursor-pointer hover:bg-[#BF5700]/15 transition-colors group">
-        <AlertCircle size={15} className="text-[#BF5700] shrink-0" />
-        <p className="text-sm text-white/70 flex-1">
-          <span className="font-semibold text-[#BF5700]">
-            TMDSAS opens in {DAYS_TO_CYCLE} days.
-          </span>{" "}
-          Your clinical hours are 350 below the UT median — consider adding opportunities now.
-        </p>
-        <ChevronRight size={14} className="text-white/20 shrink-0 group-hover:text-[#BF5700] transition-colors" />
+      {/* Alert Banners */}
+      <div className="space-y-2">
+        {suggestions.map((s, i) => (
+          <Link
+            key={s.title}
+            href={s.ctaHref}
+            className="flex items-center gap-3 bg-[#BF5700]/10 border border-[#BF5700]/25 rounded-lg px-4 py-3 hover:bg-[#BF5700]/15 transition-colors group"
+          >
+            <AlertCircle size={15} className="text-[#BF5700] shrink-0" />
+            <p className="text-sm text-white/70 flex-1">
+              {i === 0 && (
+                <>
+                  <span className="font-semibold text-[#BF5700]">
+                    TMDSAS opens in {daysToCycle} days.
+                  </span>{" "}
+                </>
+              )}
+              {s.description}
+            </p>
+            <ChevronRight size={14} className="text-white/20 shrink-0 group-hover:text-[#BF5700] transition-colors" />
+          </Link>
+        ))}
       </div>
 
       {/* Header */}
       <div className="flex items-baseline justify-between">
         <div>
           <h1 className="text-xl font-bold text-white tracking-tight">
-            Welcome back, {USER.name}
+            Welcome back, {userProfile.firstName}
           </h1>
           <p className="text-sm text-white/35 mt-0.5">
             Here&apos;s where you stand heading into the 2025–26 cycle.
@@ -226,7 +252,7 @@ export default function DashboardPage() {
             </ResponsiveContainer>
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
               <span className="font-mono text-[2.6rem] font-bold text-white leading-none">
-                {ACCEPTANCE_PCT}%
+                {acceptancePct}%
               </span>
               <span className="text-[11px] text-white/35 mt-1">avg acceptance</span>
             </div>
@@ -259,12 +285,13 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex flex-col gap-1.5 flex-1">
-            {SCHOOLS.map((school) => {
+            {enrichedSchools.map((school) => {
               const cfg = TIER_CFG[school.tier];
               return (
-                <div
+                <Link
                   key={school.name}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-white/[0.025] border border-white/[0.06] hover:border-white/15 hover:bg-white/[0.04] transition-colors cursor-pointer"
+                  href={`/schools/${school.id}`}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-white/[0.025] border border-white/[0.06] hover:border-white/15 hover:bg-white/[0.04] transition-colors"
                 >
                   <div className="w-8 h-8 rounded-md bg-white/[0.07] flex items-center justify-center shrink-0">
                     <span className="text-[9px] font-mono font-bold text-white/40 tracking-wider">
@@ -282,7 +309,7 @@ export default function DashboardPage() {
                   <span className="font-mono text-sm text-white/40 w-9 text-right tabular-nums">
                     {school.pct}%
                   </span>
-                </div>
+                </Link>
               );
             })}
           </div>
