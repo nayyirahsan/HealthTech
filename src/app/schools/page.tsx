@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   ChevronUp,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ChevronsUpDown,
   Search,
   BookmarkPlus,
@@ -12,6 +14,7 @@ import {
   Users,
 } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
+import { createClient } from "@/lib/supabase/client";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -43,7 +46,7 @@ interface School {
   utOutcomes:     Record<string, Record<string, UTOutcomeCell>>; // gpa band → mcat band → cell
 }
 
-// ── Mock Data ─────────────────────────────────────────────────────────────────
+// ── Constants ─────────────────────────────────────────────────────────────────
 
 const GPA_BANDS  = ["3.8–4.0", "3.6–3.79", "3.4–3.59", "< 3.4"];
 const MCAT_BANDS = ["517–528", "510–516", "500–509", "< 500"];
@@ -52,7 +55,38 @@ function mockCell(a: number, i: number, ac: number): UTOutcomeCell {
   return { applied: a, interviewed: i, accepted: ac };
 }
 
-const SCHOOLS: School[] = [
+// Convert numeric in_state_bias % → display label
+function biasLabel(val: number | null): School["inStateBias"] {
+  if (val == null) return "Low";
+  if (val >= 70)   return "High";
+  if (val >= 40)   return "Moderate";
+  return "Low";
+}
+
+// Map a raw Supabase row → School shape the UI expects
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapRow(row: any): School {
+  return {
+    id:             row.id,
+    name:           row.name,
+    abbr:           row.name.split(" ").map((w: string) => w[0]).join("").slice(0, 5).toUpperCase(),
+    state:          row.state          ?? "—",
+    type:           (row.type as SchoolType) ?? "MD",
+    medianGPA:      row.median_gpa     ?? 0,
+    medianMCAT:     row.median_mcat    ?? 0,
+    acceptanceRate: row.acceptance_rate ?? 0,
+    inStateBias:    biasLabel(row.in_state_bias),
+    utAcceptRate:   null,
+    tuition:        row.tuition_in_state ? Math.round(row.tuition_in_state / 1000) : 0,
+    classSize:      row.class_size     ?? 0,
+    overview:       row.mission_keywords?.join(", ") ?? "",
+    secondaries:    [],
+    prerequisites:  row.prereqs ? Object.keys(row.prereqs).filter((k: string) => row.prereqs[k]) : [],
+    utOutcomes:     {},
+  };
+}
+
+const SCHOOLS_FALLBACK: School[] = [
   {
     id: 1,
     name: "UT Southwestern Medical School",
@@ -593,6 +627,8 @@ function RangeFilter({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function SchoolsPage() {
+  const [schools,     setSchools]     = useState<School[]>(SCHOOLS_FALLBACK);
+  const [loading,     setLoading]     = useState(true);
   const [selected,    setSelected]    = useState<School | null>(null);
   const [search,      setSearch]      = useState("");
   const [typeFilter,  setTypeFilter]  = useState<"All" | "MD" | "DO">("All");
@@ -601,6 +637,27 @@ export default function SchoolsPage() {
   const [mcatRange,   setMcatRange]   = useState<[number, number]>([495, 528]);
   const [sortKey,     setSortKey]     = useState<SortKey | null>(null);
   const [sortDir,     setSortDir]     = useState<SortDir>(null);
+  const [page,        setPage]        = useState(0);
+
+  const ROWS_PER_PAGE = 10;
+
+  // Fetch real schools from Supabase on page load
+  useEffect(() => {
+    const supabase = createClient();
+    supabase
+      .from("schools")
+      .select("*")
+      .order("name")
+      .then(({ data, error }) => {
+        if (!error && data && data.length > 0) {
+          setSchools(data.map(mapRow));
+        }
+        setLoading(false);
+      });
+  }, []);
+
+  // Reset to first page whenever filters/sort change
+  useEffect(() => { setPage(0); }, [search, typeFilter, stateFilter, gpaRange, mcatRange, sortKey, sortDir]);
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
@@ -612,7 +669,7 @@ export default function SchoolsPage() {
   }
 
   const rows = useMemo(() => {
-    let list = SCHOOLS.filter((s) => {
+    let list = schools.filter((s) => {
       if (search && !s.name.toLowerCase().includes(search.toLowerCase()) && !s.abbr.toLowerCase().includes(search.toLowerCase())) return false;
       if (typeFilter !== "All" && s.type !== typeFilter) return false;
       if (stateFilter === "In-State"     && s.state !== "TX") return false;
@@ -634,6 +691,9 @@ export default function SchoolsPage() {
     return list;
   }, [search, typeFilter, stateFilter, gpaRange, mcatRange, sortKey, sortDir]);
 
+  const totalPages  = Math.ceil(rows.length / ROWS_PER_PAGE);
+  const visibleRows = rows.slice(page * ROWS_PER_PAGE, (page + 1) * ROWS_PER_PAGE);
+
   return (
     <div className="min-h-full bg-[#0F172A] flex flex-col">
 
@@ -643,7 +703,7 @@ export default function SchoolsPage() {
           <div>
             <h1 className="text-xl font-bold text-white tracking-tight">School Explorer</h1>
             <p className="text-sm text-white/35 mt-0.5">
-              {rows.length} of {SCHOOLS.length} schools · Click any row for details
+              {loading ? "Loading schools…" : "Click any row for details"}
             </p>
           </div>
 
@@ -752,7 +812,7 @@ export default function SchoolsPage() {
                 </td>
               </tr>
             ) : (
-              rows.map((school, i) => (
+              visibleRows.map((school, i) => (
                 <tr
                   key={school.id}
                   onClick={() => setSelected(school)}
@@ -798,6 +858,33 @@ export default function SchoolsPage() {
             )}
           </tbody>
         </table>
+
+        {totalPages > 1 && (
+          <div className="border-t border-white/[0.05] px-6 py-3 flex items-center justify-between">
+            <span className="text-xs text-white/30">
+              {page * ROWS_PER_PAGE + 1}–{Math.min((page + 1) * ROWS_PER_PAGE, rows.length)} of {rows.length} schools
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                disabled={page === 0}
+                className="w-7 h-7 flex items-center justify-center rounded-lg border border-white/10 text-white/40 hover:text-white/80 hover:border-white/25 disabled:opacity-25 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft size={14} />
+              </button>
+              <span className="text-[11px] text-white/35 font-mono tabular-nums w-16 text-center">
+                {page + 1} / {totalPages}
+              </span>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                disabled={page === totalPages - 1}
+                className="w-7 h-7 flex items-center justify-center rounded-lg border border-white/10 text-white/40 hover:text-white/80 hover:border-white/25 disabled:opacity-25 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <SchoolDrawer school={selected} onClose={() => setSelected(null)} />

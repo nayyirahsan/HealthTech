@@ -12,8 +12,9 @@ import {
 import { TrendingUp, TrendingDown, ArrowRight } from "lucide-react";
 import { useTheme } from "@/app/providers";
 
-// ── Mock Data ────────────────────────────────────────────────────────────────
+// ── Default data ──────────────────────────────────────────────────────────────
 
+// USER stats — placeholder until auth is wired up
 const USER = {
   gpa:            3.75,
   mcat:           512,
@@ -23,10 +24,8 @@ const USER = {
   shadowingHours: 90,
 };
 
-// UT HPO median for admitted applicants
-const UT_MEDIAN = {
-  gpa:            3.82,
-  mcat:           513,
+// Known constants from UT HPO reports (hours not in DB)
+const UT_HOURS = {
   clinicalHours:  1200,
   researchHours:  600,
   volunteerHours: 250,
@@ -48,14 +47,7 @@ function norm(value: number, key: keyof typeof AXIS_MAX) {
   return Math.round((Math.min(value, AXIS_MAX[key]) / AXIS_MAX[key]) * 100);
 }
 
-const RADAR_DATA = [
-  { axis: "GPA",       user: norm(USER.gpa,            "gpa"),            median: norm(UT_MEDIAN.gpa,            "gpa")            },
-  { axis: "MCAT",      user: norm(USER.mcat,           "mcat"),           median: norm(UT_MEDIAN.mcat,           "mcat")           },
-  { axis: "Clinical",  user: norm(USER.clinicalHours,  "clinicalHours"),  median: norm(UT_MEDIAN.clinicalHours,  "clinicalHours")  },
-  { axis: "Research",  user: norm(USER.researchHours,  "researchHours"),  median: norm(UT_MEDIAN.researchHours,  "researchHours")  },
-  { axis: "Volunteer", user: norm(USER.volunteerHours, "volunteerHours"), median: norm(UT_MEDIAN.volunteerHours, "volunteerHours") },
-  { axis: "Shadowing", user: norm(USER.shadowingHours, "shadowingHours"), median: norm(UT_MEDIAN.shadowingHours, "shadowingHours") },
-];
+// RADAR_DATA is now computed inside the component using live utMedian state
 
 // ── Stat card config ─────────────────────────────────────────────────────────
 
@@ -233,6 +225,22 @@ export default function UTBenchmarksPage() {
   const medianFill   = isLight ? "rgba(0,0,0,0.06)"  : "rgba(255,255,255,0.04)";
   const tickFill     = isLight ? "rgba(0,0,0,0.55)"  : "rgba(255,255,255,0.40)";
   const dotFill      = isLight ? "rgba(0,0,0,0.40)"  : "rgba(255,255,255,0.40)";
+
+  // Published UT Austin HPO medians for Dell Medical School (2021–2023 reports)
+  const UT_MEDIAN = {
+    gpa:  3.82,
+    mcat: 513,
+    ...UT_HOURS,
+  };
+
+  const RADAR_DATA = [
+    { axis: "GPA",       user: norm(USER.gpa,            "gpa"),            median: norm(UT_MEDIAN.gpa,            "gpa")            },
+    { axis: "MCAT",      user: norm(USER.mcat,           "mcat"),           median: norm(UT_MEDIAN.mcat,           "mcat")           },
+    { axis: "Clinical",  user: norm(USER.clinicalHours,  "clinicalHours"),  median: norm(UT_MEDIAN.clinicalHours,  "clinicalHours")  },
+    { axis: "Research",  user: norm(USER.researchHours,  "researchHours"),  median: norm(UT_MEDIAN.researchHours,  "researchHours")  },
+    { axis: "Volunteer", user: norm(USER.volunteerHours, "volunteerHours"), median: norm(UT_MEDIAN.volunteerHours, "volunteerHours") },
+    { axis: "Shadowing", user: norm(USER.shadowingHours, "shadowingHours"), median: norm(UT_MEDIAN.shadowingHours, "shadowingHours") },
+  ];
 
   const aheadCount  = STATS.filter(({ key }) => USER[key] >= UT_MEDIAN[key]).length;
   const behindCount = STATS.length - aheadCount;
