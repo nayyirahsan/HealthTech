@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useAuth } from "@/app/providers";
 import { Dialog } from "@/components/ui/dialog";
+import { createClient } from "@/lib/supabase/client";
 import {
   User, Layers, Bell, BarChart3, Shield, Palette, Bot,
   Download, Trash2, AlertTriangle, Sun, Moon, Monitor,
@@ -28,7 +30,7 @@ const SECTIONS: {
   icon: React.ElementType;
   hint: string;
 }[] = [
-  { id: "account",       label: "Account",          icon: User,     hint: "Email, password, SSO"   },
+  { id: "account",       label: "Account",          icon: User,     hint: "Email, password, profile"   },
   { id: "preferences",   label: "App Preferences",  icon: Layers,   hint: "Cycle, system, degree"  },
   { id: "notifications", label: "Notifications",    icon: Bell,     hint: "Alerts & reminders"     },
   { id: "benchmark",     label: "Benchmarks",       icon: BarChart3,hint: "Comparison groups"      },
@@ -230,7 +232,9 @@ function SaveButton({
 // ── Account section ───────────────────────────────────────────────────────────
 
 function AccountSection() {
-  const [email, setEmail]           = useState("alexj@utexas.edu");
+  const { user, signOut } = useAuth();
+  const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null);
+  const [email, setEmail]           = useState(user?.email ?? "");
   const [currentPw, setCurrentPw]   = useState("");
   const [newPw, setNewPw]           = useState("");
   const [confirmPw, setConfirmPw]   = useState("");
@@ -238,13 +242,48 @@ function AccountSection() {
   const [showNew, setShowNew]       = useState(false);
   const [emailSaved, setEmailSaved] = useState(false);
   const [pwSaved, setPwSaved]       = useState(false);
+  const [accountError, setAccountError] = useState<string | null>(null);
 
-  function handleSaveEmail() {
+  useEffect(() => {
+    setSupabase(createClient());
+  }, []);
+
+  useEffect(() => {
+    setEmail(user?.email ?? "");
+  }, [user]);
+
+  async function handleSaveEmail() {
+    setAccountError(null);
+    if (!supabase) {
+      setAccountError("Authentication is still loading. Try again in a moment.");
+      return;
+    }
+    const { error } = await supabase.auth.updateUser({ email });
+    if (error) {
+      setAccountError(error.message);
+      return;
+    }
     setEmailSaved(true);
     setTimeout(() => setEmailSaved(false), 2200);
   }
 
-  function handleSavePw() {
+  async function handleSavePw() {
+    setAccountError(null);
+    if (!supabase) {
+      setAccountError("Authentication is still loading. Try again in a moment.");
+      return;
+    }
+    if (!newPw || newPw !== confirmPw) {
+      setAccountError("Passwords must match before saving.");
+      return;
+    }
+
+    const { error } = await supabase.auth.updateUser({ password: newPw });
+    if (error) {
+      setAccountError(error.message);
+      return;
+    }
+
     setPwSaved(true);
     setTimeout(() => setPwSaved(false), 2200);
     setCurrentPw("");
@@ -259,8 +298,14 @@ function AccountSection() {
     <div className="space-y-6 max-w-2xl">
       <SectionHeader
         label="Account"
-        description="Manage your login credentials and connected authentication providers."
+        description="Manage your login credentials and account details."
       />
+
+      {accountError && (
+        <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+          {accountError}
+        </div>
+      )}
 
       {/* Email */}
       <div>
@@ -281,6 +326,9 @@ function AccountSection() {
               </div>
               <SaveButton onClick={handleSaveEmail} saved={emailSaved} />
             </div>
+            <p className="text-[11px] text-white/30 mt-3">
+              Changing your email may require confirmation through Supabase depending on project settings.
+            </p>
           </div>
         </SectionCard>
       </div>
@@ -349,35 +397,22 @@ function AccountSection() {
         </SectionCard>
       </div>
 
-      {/* Connected accounts */}
       <div>
-        <SubLabel>Connected Accounts</SubLabel>
+        <SubLabel>Session</SubLabel>
         <SectionCard>
           <div className="px-5 py-4 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-white/[0.06] border border-white/[0.08] flex items-center justify-center shrink-0">
-                {/* Google color logo */}
-                <svg width="16" height="16" viewBox="0 0 24 24" aria-label="Google">
-                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
-                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-                </svg>
-              </div>
-              <div>
-                <p className="text-sm text-white/80 font-medium">Google</p>
-                <p className="text-xs text-white/30 mt-0.5 font-mono">alexj@utexas.edu</p>
-              </div>
+            <div>
+              <p className="text-sm text-white/80 font-medium">Current session</p>
+              <p className="text-xs text-white/30 mt-0.5">Sign out of this browser session.</p>
             </div>
-            <div className="flex items-center gap-3">
-              <span className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-medium">
-                <Check size={11} strokeWidth={2.5} />
-                Connected
-              </span>
-              <button className="text-xs text-white/25 hover:text-red-400 transition-colors">
-                Disconnect
-              </button>
-            </div>
+            <button
+              onClick={async () => {
+                await signOut();
+              }}
+              className="px-4 py-2 rounded-lg text-xs font-semibold border border-red-500/25 bg-red-500/10 text-red-300 hover:bg-red-500/15 transition-colors"
+            >
+              Sign Out
+            </button>
           </div>
         </SectionCard>
       </div>

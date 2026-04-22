@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
-import { Providers }              from "./providers";
-import { Sidebar, BottomTabBar } from "@/components/layout/sidebar";
-import { TopNav }                 from "@/components/layout/top-nav";
+import { Providers } from "./providers";
+import { AppFrame } from "@/components/layout/app-frame";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -45,16 +44,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[#0F172A]`}>
         <Providers>
-          <div className="flex min-h-screen items-start">
-            <Sidebar />
-            <div className="flex-1 flex flex-col min-w-0 min-h-screen">
-              <TopNav />
-              <main className="flex-1 pb-16 md:pb-0">
-                {children}
-              </main>
-            </div>
-          </div>
-          <BottomTabBar />
+          <AppFrame>{children}</AppFrame>
         </Providers>
       </body>
     </html>

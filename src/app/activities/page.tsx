@@ -530,7 +530,7 @@ function AddActivityForm({
             <p className="text-[11px] text-white/35 mt-1 leading-relaxed">
               AMCAS allows 3 most meaningful activities.{" "}
               {!canAddMeaningful && !form.mostMeaningful && (
-                <span className="text-amber-400">You've already selected 3.</span>
+                <span className="text-amber-400">You&apos;ve already selected 3.</span>
               )}
               {canAddMeaningful && (
                 <span className="text-white/25">{3 - meaningfulCount} slot{3 - meaningfulCount !== 1 ? "s" : ""} remaining.</span>

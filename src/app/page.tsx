@@ -12,13 +12,13 @@ export default function HomePage() {
         </p>
         <div className="flex gap-4 justify-center">
           <a
-            href="/onboarding"
+            href="/login"
             className="bg-orange-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-orange-700"
           >
-            Get Started
+            Sign In to Get Started
           </a>
           <a
-            href="/schools"
+            href="/login?next=/schools"
             className="border border-gray-300 px-6 py-3 rounded-lg font-medium hover:bg-gray-50"
           >
             Explore Schools

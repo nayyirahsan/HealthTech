@@ -15,6 +15,7 @@ import {
   Calendar,
   Activity,
   Settings,
+  GraduationCap,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -29,6 +30,7 @@ const NAV_ITEMS = [
   { href: "/opportunities",    label: "Opportunities",     icon: Briefcase       },
   { href: "/my-list",          label: "My List",           icon: BookMarked      },
   { href: "/interview-prep",   label: "Interview Prep",    icon: MessageSquare   },
+  { href: "/advising",         label: "Advising",          icon: GraduationCap   },
   { href: "/chat",             label: "AI Advisor",        icon: MessageCircle   },
 ] as const;
 

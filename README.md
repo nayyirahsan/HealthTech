@@ -13,7 +13,7 @@ A data-driven AI copilot that helps UT Austin premeds navigate medical school ad
 | Frontend | Next.js 14 (App Router) + TypeScript + Tailwind CSS | SSR, SEO, fast development |
 | UI Components | shadcn/ui + Lucide icons | Consistent, accessible component library |
 | Database | Supabase (Postgres + Auth + Storage) | Auth, real-time data, row-level security |
-| AI | Anthropic Claude API (Sonnet) | Admissions Q&A, interview prep, contextual guidance |
+| AI | LangChain + Groq | Admissions Q&A, interview prep, contextual guidance |
 | Charts | Recharts | Data visualization for benchmarks and stats |
 | Data Pipeline | Python (pdfplumber, BeautifulSoup, pandas) | PDF parsing, web scraping, CSV transforms |
 | Hosting | Vercel | One-click deploy from GitHub |
@@ -28,7 +28,7 @@ A data-driven AI copilot that helps UT Austin premeds navigate medical school ad
 - npm
 - Python 3.10+ (for data pipeline scripts)
 - Supabase account (free tier works)
-- Anthropic API key
+- Groq API key
 
 ### Setup
 
@@ -45,12 +45,48 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+Required local env for auth:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `GROQ_API_KEY` if you want the AI routes to work
+- `GROQ_MODEL` (optional) to override the default model
+- `NEXT_PUBLIC_APP_URL=http://localhost:3000`
+
 ### Database Setup
 
 1. Create a new Supabase project
 2. Run `supabase/schema.sql` in the SQL editor to create all tables
 3. Run `supabase/seed.sql` to load sample data
 4. Copy your project URL and anon key into `.env.local`
+
+### Auth Setup
+
+The app now uses Supabase Auth for email/password login, Google login, onboarding, and account settings.
+
+For a fresh project:
+
+1. Run `supabase/schema.sql`
+2. Run `supabase/seed.sql`
+
+For an existing project that already has the older `public.users` table:
+
+1. Run `supabase/migrations/20260422_add_auth_profile_fields.sql`
+
+Supabase Auth provider setup:
+
+1. In Supabase, enable Email auth
+2. If you want Google sign-in, enable the Google provider
+3. Add these redirect URLs in Supabase Auth:
+   `http://localhost:3000/auth/callback`
+   your production `/auth/callback` URL when deployed
+
+Notes:
+
+- App routes are protected by middleware; `/` and `/login` stay public
+- New users are redirected to `/onboarding` until required profile fields are filled
+- Account email/password management lives in `/settings`
 
 ---
 
@@ -81,6 +117,7 @@ Open [http://localhost:3000](http://localhost:3000).
 │   └── types/                  # TypeScript interfaces for all DB tables
 ├── supabase/
 │   ├── schema.sql              # Full database DDL
+│   ├── migrations/             # Incremental SQL migrations for existing projects
 │   └── seed.sql                # Sample data
 ├── scripts/                    # Python data pipeline
 │   ├── parse_msar_pdf.py       # PDF parsing

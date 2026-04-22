@@ -6,6 +6,7 @@ create table public.users (
   id uuid primary key references auth.users(id) on delete cascade,
   email text not null,
   full_name text,
+  eid text,
   gpa numeric(4,2),
   science_gpa numeric(4,2),
   mcat_score int check (mcat_score between 472 and 528),
@@ -13,10 +14,15 @@ create table public.users (
   major text,
   residency_state text,
   graduation_year int,
+  app_cycle text,
   clinical_hours int default 0,
   research_hours int default 0,
   volunteer_hours int default 0,
   shadowing_hours int default 0,
+  leadership_hours int default 0,
+  personal_statement text,
+  app_status text check (app_status in ('pre-app', 'applied', 'interviewing', 'accepted')) default 'pre-app',
+  avatar_url text,
   created_at timestamp with time zone default now()
 );
 
@@ -109,6 +115,7 @@ alter table public.chat_history enable row level security;
 
 -- RLS Policies: users can only access their own data
 create policy "Users can view own profile" on public.users for select using (auth.uid() = id);
+create policy "Users can insert own profile" on public.users for insert with check (auth.uid() = id);
 create policy "Users can update own profile" on public.users for update using (auth.uid() = id);
 create policy "Users can view own saved schools" on public.saved_schools for select using (auth.uid() = user_id);
 create policy "Users can manage own saved schools" on public.saved_schools for all using (auth.uid() = user_id);
