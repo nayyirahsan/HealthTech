@@ -4,6 +4,29 @@ import { z } from "zod";
 import type { AdvisorCitation } from "@/lib/ai/types";
 import { PROFILE_SELECT, resolveUserProfile, type UserProfileRow } from "@/lib/user-profile";
 
+function emptyToUndefined(value: unknown) {
+  if (value === "" || value === null) {
+    return undefined;
+  }
+
+  return value;
+}
+
+function optionalTrimmedString() {
+  return z.preprocess(emptyToUndefined, z.string().optional()).transform((value) => {
+    if (typeof value !== "string") {
+      return undefined;
+    }
+
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  });
+}
+
+function optionalEnum<const T extends readonly [string, ...string[]]>(values: T) {
+  return z.preprocess(emptyToUndefined, z.enum(values).optional());
+}
+
 interface CreateAdvisorToolsParams {
   supabase: SupabaseClient;
   user: User;
@@ -215,10 +238,10 @@ export function createAdvisorTools({
         name: "search_schools",
         description: "Search schools by name and optional state, system, or MD/DO type.",
         schema: z.object({
-          query: z.string().optional().describe("Partial school name."),
-          state: z.string().optional().describe("Two-letter state code like TX."),
-          system: z.enum(["TMDSAS", "AMCAS", "AACOMAS"]).optional(),
-          type: z.enum(["MD", "DO"]).optional(),
+          query: optionalTrimmedString().describe("Partial school name."),
+          state: optionalTrimmedString().describe("Two-letter state code like TX."),
+          system: optionalEnum(["TMDSAS", "AMCAS", "AACOMAS"]),
+          type: optionalEnum(["MD", "DO"]),
           limit: z.number().int().min(1).max(20).default(8),
         }),
       },
@@ -246,7 +269,7 @@ export function createAdvisorTools({
         description: "Fetch a single school's detailed record by id or approximate name.",
         schema: z.object({
           schoolId: z.number().int().optional(),
-          schoolName: z.string().optional(),
+          schoolName: optionalTrimmedString(),
         }),
       },
     ),
@@ -291,10 +314,10 @@ export function createAdvisorTools({
         name: "get_ut_outcomes",
         description: "Fetch UT Austin outcome rows by school, application system, GPA band, MCAT band, or report year.",
         schema: z.object({
-          schoolName: z.string().optional(),
-          applicationSystem: z.enum(["TMDSAS", "AMCAS", "AACOMAS"]).optional(),
-          gpaBand: z.string().optional(),
-          mcatBand: z.string().optional(),
+          schoolName: optionalTrimmedString(),
+          applicationSystem: optionalEnum(["TMDSAS", "AMCAS", "AACOMAS"]),
+          gpaBand: optionalTrimmedString(),
+          mcatBand: optionalTrimmedString(),
           reportYear: z.number().int().optional(),
           limit: z.number().int().min(1).max(50).default(20),
         }),
@@ -338,9 +361,9 @@ export function createAdvisorTools({
         name: "get_acceptance_grid",
         description: "Fetch AAMC or AACOM acceptance-grid rows by GPA range, MCAT range, and year.",
         schema: z.object({
-          source: z.enum(["AAMC", "AACOM"]).optional(),
-          gpaRange: z.string().optional(),
-          mcatRange: z.string().optional(),
+          source: optionalEnum(["AAMC", "AACOM"]),
+          gpaRange: optionalTrimmedString(),
+          mcatRange: optionalTrimmedString(),
           year: z.number().int().optional(),
           limit: z.number().int().min(1).max(30).default(12),
         }),
@@ -386,7 +409,7 @@ export function createAdvisorTools({
         description: "Fetch interview format, sample questions, and tips for a specific school.",
         schema: z.object({
           schoolId: z.number().int().optional(),
-          schoolName: z.string().optional(),
+          schoolName: optionalTrimmedString(),
         }),
       },
     ),
