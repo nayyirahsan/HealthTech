@@ -209,11 +209,13 @@ export function createAdvisorTools({
     ),
     tool(
       async ({ query, state, system, type, limit }) => {
+        const effectiveLimit = typeof limit === "number" ? limit : 8;
+
         let request = supabase
           .from("schools")
           .select("id, name, type, system, state, median_gpa, median_mcat, acceptance_rate, class_size, tuition_in_state, tuition_oos, mission_keywords")
           .order("name")
-          .limit(limit);
+          .limit(effectiveLimit);
 
         if (query?.trim()) {
           request = request.ilike("name", `%${query.trim()}%`);
@@ -249,7 +251,8 @@ export function createAdvisorTools({
           state: optionalTrimmedString().describe("Two-letter state code like TX."),
           system: optionalEnum(["TMDSAS", "AMCAS", "AACOMAS"]),
           type: optionalEnum(["MD", "DO"]),
-          limit: z.number().int().min(1).max(20).default(8),
+          // Avoid Zod `.default()` here — it introduces transforms that can't be exported to JSON Schema for Groq tool calling.
+          limit: z.number().int().min(1).max(20).optional().describe("Defaults to 8 when omitted."),
         }),
       },
     ),
@@ -282,11 +285,13 @@ export function createAdvisorTools({
     ),
     tool(
       async ({ schoolName, applicationSystem, gpaBand, mcatBand, reportYear, limit }) => {
+        const effectiveLimit = typeof limit === "number" ? limit : 20;
+
         let request = supabase
           .from("ut_outcomes")
           .select("*")
           .order("report_year", { ascending: false })
-          .limit(limit);
+          .limit(effectiveLimit);
 
         if (schoolName?.trim()) {
           request = request.ilike("school_name", `%${schoolName.trim()}%`);
@@ -326,17 +331,19 @@ export function createAdvisorTools({
           gpaBand: optionalTrimmedString(),
           mcatBand: optionalTrimmedString(),
           reportYear: z.number().int().optional(),
-          limit: z.number().int().min(1).max(50).default(20),
+          limit: z.number().int().min(1).max(50).optional().describe("Defaults to 20 when omitted."),
         }),
       },
     ),
     tool(
       async ({ source, gpaRange, mcatRange, year, limit }) => {
+        const effectiveLimit = typeof limit === "number" ? limit : 12;
+
         let request = supabase
           .from("acceptance_grid")
           .select("*")
           .order("year", { ascending: false })
-          .limit(limit);
+          .limit(effectiveLimit);
 
         if (source) {
           request = request.eq("source", source);
@@ -372,7 +379,7 @@ export function createAdvisorTools({
           gpaRange: optionalTrimmedString(),
           mcatRange: optionalTrimmedString(),
           year: z.number().int().optional(),
-          limit: z.number().int().min(1).max(30).default(12),
+          limit: z.number().int().min(1).max(30).optional().describe("Defaults to 12 when omitted."),
         }),
       },
     ),
