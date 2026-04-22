@@ -21,6 +21,10 @@
 *.pem
 .mcp.json
 
+# local tooling / agent artifacts (never commit)
+.cursor/
+.claude-flow/
+
 # debug
 npm-debug.log*
 yarn-debug.log*
