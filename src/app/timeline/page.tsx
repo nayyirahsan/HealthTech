@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Calendar,
   CheckCircle2,
@@ -13,6 +13,7 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
+import { createClient } from "@/lib/supabase/client";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -50,50 +51,49 @@ interface SchoolEntry {
   decision: Decision;
 }
 
-// ── Mock Data — 2025–26 Cycle ─────────────────────────────────────────────────
+interface ActivityRow {
+  id: number;
+  name: string;
+  category: "Clinical" | "Research" | "Volunteering" | "Shadowing" | "Leadership" | "Other";
+  hours: number;
+  end_date: string | null;
+}
 
-const TODAY = new Date("2026-04-14");
+interface DeadlineRow {
+  id: number;
+  key: string;
+  label: string;
+  date: string;
+  system: System;
+  type: "milestone" | "submission" | "deadline";
+  description: string;
+  completed: boolean;
+}
 
-const MASTER_DEADLINES: MasterDeadline[] = [
-  { id: "amcas-opens",         label: "AMCAS Application Opens",            date: "2025-05-01", system: "AMCAS",  type: "milestone",  description: "Portal opens; begin filling out primary application.",              completed: true  },
-  { id: "tmdsas-opens",        label: "TMDSAS Application Opens",           date: "2025-05-01", system: "TMDSAS", type: "milestone",  description: "Texas medical school portal opens.",                                completed: true  },
-  { id: "lor-request",         label: "Request Letters of Recommendation",  date: "2025-05-15", system: "Both",   type: "milestone",  description: "Contact committee chair and individual letter writers.",           completed: true  },
-  { id: "amcas-first-submit",  label: "AMCAS First Day to Submit",          date: "2025-06-03", system: "AMCAS",  type: "submission", description: "Earliest possible AMCAS primary submission date.",                  completed: true  },
-  { id: "secondary-season",    label: "Secondary Essay Season Begins",      date: "2025-07-01", system: "Both",   type: "milestone",  description: "Secondary invitations begin rolling in from verified schools.",     completed: true  },
-  { id: "tmdsas-first-submit", label: "TMDSAS First Day to Submit",         date: "2025-07-15", system: "TMDSAS", type: "submission", description: "Begin transmitting completed TX primary applications.",              completed: true  },
-  { id: "amcas-edp",           label: "AMCAS Early Decision Deadline",      date: "2025-08-01", system: "AMCAS",  type: "deadline",   description: "Binding early decision program (EDP) cutoff date.",                 completed: true  },
-  { id: "mcat-cutoff",         label: "Last MCAT for Rolling Schools",      date: "2025-09-06", system: "Both",   type: "milestone",  description: "Scores from this date arrive in time for most rolling programs.",   completed: true  },
-  { id: "tmdsas-lor",          label: "TMDSAS Letters of Rec Deadline",     date: "2025-09-15", system: "TMDSAS", type: "deadline",   description: "All reference letters must be received by TMDSAS.",                 completed: true  },
-  { id: "tmdsas-deadline",     label: "TMDSAS Application Deadline",        date: "2025-10-01", system: "TMDSAS", type: "deadline",   description: "Hard deadline for all Texas MD programs — no exceptions.",          completed: true  },
-  { id: "interview-season",    label: "Interview Season Opens",             date: "2025-10-01", system: "Both",   type: "milestone",  description: "Medical school interviews begin (October through March).",           completed: true  },
-  { id: "amcas-rolling",       label: "AMCAS Rolling Peak Deadline",        date: "2025-10-15", system: "AMCAS",  type: "deadline",   description: "Most competitive programs stop reviewing new applications.",         completed: true  },
-  { id: "amcas-regular",       label: "AMCAS Regular Deadline (Most)",      date: "2025-11-15", system: "AMCAS",  type: "deadline",   description: "Hard deadline for the majority of MD programs.",                    completed: true  },
-  { id: "amcas-late",          label: "AMCAS Late Deadline (Late Schools)", date: "2026-01-15", system: "AMCAS",  type: "deadline",   description: "Final cutoff for schools accepting late applications.",              completed: true  },
-  { id: "hold-deadline",       label: "AAMC Multiple Acceptance Hold",      date: "2026-04-15", system: "AMCAS",  type: "deadline",   description: "Must narrow to ≤2 acceptances — programs may rescind extras.",      completed: false },
-  { id: "acceptance-day",      label: "Acceptance Day — Final Decision",    date: "2026-05-15", system: "Both",   type: "milestone",  description: "Deposit due; commit to your medical school of choice.",             completed: false },
-  { id: "cycle-ends",          label: "Application Cycle Ends",             date: "2026-06-30", system: "Both",   type: "milestone",  description: "All offer decisions finalized. AAMC / TMDSAS cycle closes.",        completed: false },
-];
+interface SchoolApplicationRow {
+  id: number;
+  school_name: string;
+  school_abbr: string;
+  system: "AMCAS" | "TMDSAS";
+  applied: string | null;
+  secondary_received: string | null;
+  secondary_submitted: string | null;
+  interview_invite: string | null;
+  interview_date: string | null;
+  decision: Decision;
+}
 
-const INITIAL_TASKS: PersonalTask[] = [
-  { id: "pt1", label: "Finalize personal statement draft",           dueDate: "2025-05-20", completed: true  },
-  { id: "pt2", label: "Request committee letter from pre-health",    dueDate: "2025-05-10", completed: true  },
-  { id: "pt3", label: "Complete all TMDSAS essays",                  dueDate: "2025-07-01", completed: true  },
-  { id: "pt4", label: "Submit 5 secondary essays",                   dueDate: "2025-08-15", completed: true  },
-  { id: "pt5", label: "Prepare for UT Southwestern MMI",             dueDate: "2025-11-08", completed: true  },
-  { id: "pt6", label: "Send thank-you notes to interviewers",        dueDate: "2025-11-20", completed: false },
-  { id: "pt7", label: "Send LOI to Baylor COM (on waitlist)",        dueDate: "2026-02-01", completed: false },
-  { id: "pt8", label: "Compare financial aid packages",              dueDate: "2026-04-30", completed: false },
-  { id: "pt9", label: "Finalize school decision before May 15",      dueDate: "2026-05-14", completed: false },
-];
+const TODAY = new Date();
 
-const INITIAL_SCHOOLS: SchoolEntry[] = [
-  { id: "s1", name: "UT Southwestern",           abbr: "UTSW", system: "TMDSAS", applied: "2025-07-15", secondaryReceived: "2025-08-10", secondarySubmitted: "2025-08-20", interviewInvite: "2025-10-05", interviewDate: "2025-11-12", decision: "accepted"   },
-  { id: "s2", name: "Baylor COM",                abbr: "BCM",  system: "TMDSAS", applied: "2025-07-15", secondaryReceived: "2025-08-08", secondarySubmitted: "2025-08-22", interviewInvite: "2025-10-15", interviewDate: "2025-12-03", decision: "waitlisted" },
-  { id: "s3", name: "Texas A&M COM",             abbr: "TAMU", system: "TMDSAS", applied: "2025-07-15", secondaryReceived: "2025-08-15", secondarySubmitted: "2025-09-01", interviewInvite: null,          interviewDate: null,          decision: "rejected"   },
-  { id: "s4", name: "UT Health Houston",         abbr: "UTH",  system: "TMDSAS", applied: "2025-07-15", secondaryReceived: "2025-08-20", secondarySubmitted: "2025-09-05", interviewInvite: "2025-10-25", interviewDate: "2025-12-08", decision: "accepted"   },
-  { id: "s5", name: "Mayo Clinic Alix SOM",      abbr: "MAYO", system: "AMCAS",  applied: "2025-06-10", secondaryReceived: "2025-07-05", secondarySubmitted: "2025-07-20", interviewInvite: null,          interviewDate: null,          decision: "rejected"   },
-  { id: "s6", name: "Tulane School of Medicine", abbr: "TULU", system: "AMCAS",  applied: "2025-06-10", secondaryReceived: "2025-07-12", secondarySubmitted: "2025-08-01", interviewInvite: "2025-10-30", interviewDate: "2026-01-15", decision: null         },
-];
+const CATEGORY_MEDIANS: Record<ActivityRow["category"], number> = {
+  Clinical: 1200,
+  Research: 600,
+  Volunteering: 250,
+  Shadowing: 120,
+  Leadership: 75,
+  Other: 100,
+};
+
 
 const SCHOOL_STAGES = [
   { key: "applied",            label: "Applied"    },
@@ -121,6 +121,69 @@ function fmtMonthYear(dateStr: string): string {
 
 function uid(): string {
   return Math.random().toString(36).slice(2, 9);
+}
+
+function buildActivityTasks(rows: ActivityRow[]): PersonalTask[] {
+  if (rows.length === 0) return [];
+
+  const completionTasks: PersonalTask[] = rows
+    .filter((r) => r.end_date)
+    .sort((a, b) => (a.end_date ?? "").localeCompare(b.end_date ?? ""))
+    .slice(0, 6)
+    .map((r) => ({
+      id: `a-${r.id}`,
+      label: `Finalize reflection for ${r.name}`,
+      dueDate: r.end_date ?? TODAY.toISOString().slice(0, 10),
+      completed: daysUntil(r.end_date ?? TODAY.toISOString().slice(0, 10)) < 0,
+    }));
+
+  const totals = rows.reduce((acc, row) => {
+    acc[row.category] = (acc[row.category] ?? 0) + row.hours;
+    return acc;
+  }, {} as Record<ActivityRow["category"], number>);
+
+  const benchmarkTasks: PersonalTask[] = Object.entries(CATEGORY_MEDIANS)
+    .map(([category, median]) => {
+      const current = totals[category as ActivityRow["category"]] ?? 0;
+      if (current >= median) return null;
+      return {
+        id: `gap-${category}`,
+        label: `Add ${(median - current).toLocaleString()} ${category.toLowerCase()} hours to reach UT median`,
+        dueDate: "2026-05-15",
+        completed: false,
+      };
+    })
+    .filter((task): task is PersonalTask => Boolean(task))
+    .slice(0, 3);
+
+  return [...completionTasks, ...benchmarkTasks];
+}
+
+function mapDeadlineRow(row: DeadlineRow): MasterDeadline {
+  return {
+    id: String(row.id),
+    label: row.label,
+    date: row.date,
+    system: row.system,
+    type: row.type,
+    description: row.description,
+    completed: row.completed,
+  };
+}
+
+function mapSchoolRow(row: SchoolApplicationRow): SchoolEntry {
+  return {
+    id: String(row.id),
+    name: row.school_name,
+    abbr: row.school_abbr,
+    system: row.system,
+    applied: row.applied,
+    secondaryReceived: row.secondary_received,
+    secondarySubmitted: row.secondary_submitted,
+    interviewInvite: row.interview_invite,
+    interviewDate: row.interview_date,
+    decision: row.decision,
+  };
 }
 
 function getStatusConfig(d: MasterDeadline) {
@@ -197,12 +260,16 @@ function LabeledInput({ label, ...props }: LabeledInputProps) {
 
 export default function TimelinePage() {
   const [filter, setFilter]         = useState<FilterMode>("All");
-  const [tasks, setTasks]           = useState<PersonalTask[]>(INITIAL_TASKS);
-  const [schools, setSchools]       = useState<SchoolEntry[]>(INITIAL_SCHOOLS);
+  const [tasks, setTasks]           = useState<PersonalTask[]>([]);
+  const [schools, setSchools]       = useState<SchoolEntry[]>([]);
+  const [masterDeadlines, setMasterDeadlines] = useState<MasterDeadline[]>([]);
   const [expanded, setExpanded]     = useState<string | null>(null);
   const [taskLabel, setTaskLabel]   = useState("");
   const [taskDate, setTaskDate]     = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [loadingTasks, setLoadingTasks] = useState(true);
+  const [loadingTimeline, setLoadingTimeline] = useState(true);
+  const [loadingSchools, setLoadingSchools] = useState(true);
 
   const [draft, setDraft] = useState({
     name: "", abbr: "", system: "TMDSAS" as "AMCAS" | "TMDSAS",
@@ -210,14 +277,55 @@ export default function TimelinePage() {
     interviewInvite: "", interviewDate: "", decision: "" as Decision | "",
   });
 
+  useEffect(() => {
+    const supabase = createClient();
+    supabase
+      .from("activities")
+      .select("id, name, category, hours, end_date")
+      .then(({ data, error }) => {
+        if (!error && data) {
+          setTasks(buildActivityTasks(data as ActivityRow[]));
+        }
+        setLoadingTasks(false);
+      });
+  }, []);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase
+      .from("application_deadlines")
+      .select("id, key, label, date, system, type, description, completed")
+      .order("date", { ascending: true })
+      .then(({ data, error }) => {
+        if (!error && data) {
+          setMasterDeadlines(data.map((row) => mapDeadlineRow(row as DeadlineRow)));
+        }
+        setLoadingTimeline(false);
+      });
+  }, []);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase
+      .from("school_applications")
+      .select("id, school_name, school_abbr, system, applied, secondary_received, secondary_submitted, interview_invite, interview_date, decision")
+      .order("school_name", { ascending: true })
+      .then(({ data, error }) => {
+        if (!error && data) {
+          setSchools(data.map((row) => mapSchoolRow(row as SchoolApplicationRow)));
+        }
+        setLoadingSchools(false);
+      });
+  }, []);
+
   // Filtered & grouped timeline
   const filtered = useMemo(() => {
     if (filter === "Personal") return [];
-    return MASTER_DEADLINES.filter(d => {
+    return masterDeadlines.filter(d => {
       if (filter === "All") return true;
       return d.system === filter || d.system === "Both";
     });
-  }, [filter]);
+  }, [filter, masterDeadlines]);
 
   const byMonth = useMemo(() => {
     const groups: [string, MasterDeadline[]][] = [];
@@ -248,31 +356,40 @@ export default function TimelinePage() {
 
   function addSchool() {
     if (!draft.name.trim()) return;
-    setSchools(ss => [...ss, {
-      id: uid(),
-      name: draft.name.trim(),
-      abbr: draft.abbr.trim() || draft.name.slice(0, 4).toUpperCase(),
+    const payload = {
+      school_name: draft.name.trim(),
+      school_abbr: draft.abbr.trim() || draft.name.slice(0, 4).toUpperCase(),
       system: draft.system,
-      applied:            draft.applied            || null,
-      secondaryReceived:  draft.secondaryReceived  || null,
-      secondarySubmitted: draft.secondarySubmitted || null,
-      interviewInvite:    draft.interviewInvite    || null,
-      interviewDate:      draft.interviewDate      || null,
-      decision:           (draft.decision as Decision) || null,
-    }]);
+      applied: draft.applied || null,
+      secondary_received: draft.secondaryReceived || null,
+      secondary_submitted: draft.secondarySubmitted || null,
+      interview_invite: draft.interviewInvite || null,
+      interview_date: draft.interviewDate || null,
+      decision: (draft.decision as Decision) || null,
+    };
+    const supabase = createClient();
+    supabase
+      .from("school_applications")
+      .insert(payload)
+      .select("id, school_name, school_abbr, system, applied, secondary_received, secondary_submitted, interview_invite, interview_date, decision")
+      .single()
+      .then(({ data, error }) => {
+        if (!error && data) {
+          setSchools((ss) => [...ss, mapSchoolRow(data as SchoolApplicationRow)]);
+        }
+      });
     setDialogOpen(false);
     setDraft({ name: "", abbr: "", system: "TMDSAS", applied: "", secondaryReceived: "", secondarySubmitted: "", interviewInvite: "", interviewDate: "", decision: "" });
   }
 
-  const completedCount = MASTER_DEADLINES.filter(d => d.completed).length;
+  const completedCount = masterDeadlines.filter(d => d.completed).length;
   const showTimeline   = filter !== "Personal";
   const showTasks      = filter === "All" || filter === "Personal";
 
-  const COUNTDOWN = [
-    { label: "AAMC Acceptance Hold", date: "2026-04-15" },
-    { label: "Acceptance Day",        date: "2026-05-15" },
-    { label: "Cycle Ends",            date: "2026-06-30" },
-  ];
+  const COUNTDOWN = masterDeadlines
+    .filter((d) => !d.completed)
+    .slice(0, 3)
+    .map((d) => ({ label: d.label, date: d.date }));
 
   const FILTERS: FilterMode[] = ["All", "AMCAS", "TMDSAS", "Personal"];
 
@@ -313,19 +430,19 @@ export default function TimelinePage() {
 
       {/* Countdown Row */}
       <div className="flex flex-wrap gap-3 mb-7">
-        {COUNTDOWN.map(c => <CountdownCard key={c.date} {...c} />)}
+        {COUNTDOWN.map(c => <CountdownCard key={`${c.label}-${c.date}`} {...c} />)}
 
         {/* Completion meter */}
         <div className="flex-1 min-w-[130px] rounded-xl border bg-white/[0.04] border-white/10 p-4 flex flex-col gap-1.5">
           <span className="text-[9px] font-medium tracking-[0.14em] uppercase text-white/35">Deadlines Hit</span>
           <div className="flex items-baseline gap-1.5">
             <span className="font-mono text-[2rem] font-bold leading-none text-emerald-400">{completedCount}</span>
-            <span className="text-xs text-white/30">/ {MASTER_DEADLINES.length}</span>
+            <span className="text-xs text-white/30">/ {masterDeadlines.length}</span>
           </div>
           <div className="h-1.5 rounded-full bg-white/[0.08] overflow-hidden">
             <div
               className="h-full rounded-full bg-emerald-500 transition-all"
-              style={{ width: `${Math.round((completedCount / MASTER_DEADLINES.length) * 100)}%` }}
+              style={{ width: `${masterDeadlines.length ? Math.round((completedCount / masterDeadlines.length) * 100) : 0}%` }}
             />
           </div>
         </div>
@@ -346,6 +463,10 @@ export default function TimelinePage() {
               <span className="text-sm font-semibold text-white">Master Timeline</span>
               <span className="ml-auto text-[10px] text-white/25">{filtered.length} events</span>
             </div>
+            {loadingTimeline && <div className="px-5 py-4 text-xs text-white/35">Loading timeline data...</div>}
+            {!loadingTimeline && filtered.length === 0 && (
+              <div className="px-5 py-6 text-sm text-white/35">No timeline deadlines found in Supabase.</div>
+            )}
 
             {byMonth.map(([month, deadlines]) => (
               <div key={month}>
@@ -418,7 +539,7 @@ export default function TimelinePage() {
               <ClipboardList size={13} className="text-[#BF5700]" />
               <span className="text-sm font-semibold text-white">Personal Tasks</span>
               <span className="ml-auto text-[10px] text-white/25">
-                {tasks.filter(t => t.completed).length}/{tasks.length} done
+                {loadingTasks ? "syncing..." : `${tasks.filter(t => t.completed).length}/${tasks.length} done`}
               </span>
             </div>
 
@@ -511,6 +632,10 @@ export default function TimelinePage() {
         </div>
 
         <div className="divide-y divide-white/[0.04]">
+          {loadingSchools && <div className="px-5 py-4 text-xs text-white/35">Loading school tracker...</div>}
+          {!loadingSchools && schools.length === 0 && (
+            <div className="px-5 py-6 text-sm text-white/35">No school applications found in Supabase.</div>
+          )}
           {schools.map(school => {
             const { pct } = schoolProgress(school);
             const decCfg =
