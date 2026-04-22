@@ -59,25 +59,19 @@ interface Profile {
   appStatus: AppStatus
 }
 
-// ─── Mock data ───────────────────────────────────────────────────────────────
+// ─── Initial empty profile ────────────────────────────────────────────────────
 
-const MOCK: Profile = {
+const EMPTY_PROFILE: Profile = {
   avatar: null,
-  name: "Nayyir Hassan",
-  eid: "nh28492",
-  gradYear: "2026",
-  appCycle: "2026–2027",
-  gpa: { overall: 3.87, science: 3.82 },
-  mcat: { total: 514, cp: 129, cars: 127, bb: 129, ps: 129 },
-  hours: { clinical: 320, research: 150, volunteering: 210, shadowing: 80, leadership: 45 },
-  personalStatement: `Medicine called to me not from sterile hospital hallways, but from my grandmother's kitchen in Lagos — where she mixed herbs with prayer and fed neighbors who couldn't reach the clinic across town. That early exposure taught me something no textbook could: that healing is fundamentally an act of presence.
-
-As a first-generation pre-med student at UT Austin, I've spent four years translating that lesson into practice. Three hundred hours in the cardiac care unit at Dell Seton Medical Center taught me to read the room before the chart. The patient in Bed 4 who flinched every time nurses mentioned "the procedure" didn't need more clinical information — she needed someone to slow down and sit with her.
-
-My work in Dr. Patel's neuropharmacology lab sharpened a different kind of attention: the discipline of uncertainty. Science demands you hold contradictory datasets with equal seriousness until evidence resolves the tension. Medicine, I've learned, asks for exactly the same thing.
-
-I am applying to medical school to become a physician-scientist who builds bridges — between bench and bedside, between evidence and empathy, between institution and the communities it too often overlooks. The work is long. I have been preparing for it my entire life.`,
-  appStatus: "interviewing",
+  name: "",
+  eid: "",
+  gradYear: "",
+  appCycle: "",
+  gpa: { overall: 0, science: 0 },
+  mcat: { total: 0, cp: 0, cars: 0, bb: 0, ps: 0 },
+  hours: { clinical: 0, research: 0, volunteering: 0, shadowing: 0, leadership: 0 },
+  personalStatement: "",
+  appStatus: "pre-app",
 }
 
 // UT HPO median for admitted applicants (kept consistent with dashboard/ut-benchmarks)
@@ -204,7 +198,7 @@ function SectionHead({ children }: { children: ReactNode }) {
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function ProfilePage() {
-  const [profile, setProfile] = useState<Profile>(MOCK)
+  const [profile, setProfile] = useState<Profile>(EMPTY_PROFILE)
   const [editField, setEditField] = useState<string | null>(null)
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [mcatEdit, setMcatEdit] = useState<keyof Profile["mcat"] | null>(null)

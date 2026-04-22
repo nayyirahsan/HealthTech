@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   MapPin,
   Clock,
@@ -11,6 +11,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
+import { createClient } from "@/lib/supabase/client";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -37,175 +38,7 @@ interface Opportunity {
   recommendReason?: string;
 }
 
-// ── Mock Data ─────────────────────────────────────────────────────────────────
-
-// User gaps (mirrors ut-benchmarks mock data)
-// Clinical: −350 hrs, Research: −200 hrs, Volunteer: −70 hrs, Shadowing: −30 hrs
-const OPPORTUNITIES: Opportunity[] = [
-  {
-    id: 1,
-    name:         "Dell Seton Medical Center Volunteer",
-    org:          "Ascension Seton",
-    category:     "Clinical",
-    mode:         "In-Person",
-    affiliation:  "Community",
-    location:     "Austin, TX",
-    weeklyHours:  6,
-    metric:       "Clinical Hours",
-    competitive:  2,
-    description:  "Provide direct patient support on medical/surgical floors, assist nursing staff, and transport patients. One of the highest-volume clinical volunteer programs in Austin with direct patient contact from day one.",
-    requirements: ["18+ years old", "Background check", "TB test", "8-week orientation"],
-    applyUrl:     "https://www.ascension.org",
-    recommended:  true,
-    recommendReason: "You're 350 clinical hours below the UT median. This adds ~6 hrs/week with direct patient contact.",
-  },
-  {
-    id: 2,
-    name:         "UT Austin Undergraduate Research Apprentice Program",
-    org:          "UT Austin Office of Undergraduate Research",
-    category:     "Research",
-    mode:         "In-Person",
-    affiliation:  "UT-Affiliated",
-    location:     "Austin, TX",
-    weeklyHours:  10,
-    metric:       "Research Hours",
-    competitive:  3,
-    description:  "Pair with a faculty research mentor for a semester-long project. Counts toward Bridging Disciplines Program certification. Strong pathway to authorship and recommendation letters from faculty PIs.",
-    requirements: ["2.0+ GPA", "Enrolled UT student", "Faculty mentor agreement"],
-    applyUrl:     "https://ugs.utexas.edu/ura",
-    recommended:  true,
-    recommendReason: "You're 200 research hours below median. 10 hrs/week closes that gap within a semester.",
-  },
-  {
-    id: 3,
-    name:         "CommUnity Care Health Centers Patient Navigator",
-    org:          "CommUnity Care",
-    category:     "Volunteering",
-    mode:         "In-Person",
-    affiliation:  "Community",
-    location:     "Austin, TX",
-    weeklyHours:  4,
-    metric:       "Volunteer Hours",
-    competitive:  2,
-    description:  "Help underserved patients navigate appointments, insurance, and follow-up care at FQHC clinics. Strong community health focus valued by mission-driven medical schools. Bilingual volunteers especially needed.",
-    requirements: ["HIPAA training", "Reliable transportation"],
-    applyUrl:     "https://communitycaretx.org",
-    recommended:  true,
-    recommendReason: "You're 70 volunteer hours behind median. Community health work strengthens your mission alignment narrative.",
-  },
-  {
-    id: 4,
-    name:         "UT Health Austin Physician Shadowing Program",
-    org:          "UT Health Austin",
-    category:     "Shadowing",
-    mode:         "In-Person",
-    affiliation:  "UT-Affiliated",
-    location:     "Austin, TX",
-    weeklyHours:  3,
-    metric:       "Shadowing Hours",
-    competitive:  3,
-    description:  "Structured shadowing rotations across 12 specialty departments. Each rotation is 4 weeks. Participants receive a formal evaluation letter from their attending physician, which can be attached to AMCAS.",
-    requirements: ["Junior or Senior standing", "Premed advisor signature", "Minimum 2.8 science GPA"],
-    applyUrl:     "https://uthealth.utexas.edu",
-    recommended:  false,
-  },
-  {
-    id: 5,
-    name:         "UT Biomedical Engineering Lab — Undergraduate RA",
-    org:          "UT BME Department",
-    category:     "Research",
-    mode:         "In-Person",
-    affiliation:  "UT-Affiliated",
-    location:     "Austin, TX",
-    weeklyHours:  12,
-    metric:       "Research Hours",
-    competitive:  4,
-    description:  "Full research assistant position in active BME labs. Projects span tissue engineering, neural interfaces, and medical devices. Strong candidates can co-author on publications within 2 semesters.",
-    requirements: ["BME, Biology, or Chemistry major preferred", "Prior lab coursework", "Faculty interview"],
-    applyUrl:     "https://bme.utexas.edu",
-    recommended:  false,
-  },
-  {
-    id: 6,
-    name:         "Austin Free Clinic Intake Volunteer",
-    org:          "Austin Free Clinic",
-    category:     "Clinical",
-    mode:         "In-Person",
-    affiliation:  "Community",
-    location:     "Austin, TX",
-    weeklyHours:  3,
-    metric:       "Clinical Hours",
-    competitive:  1,
-    description:  "Staff intake desks, take vital signs, and assist physicians at a free clinic serving uninsured Austin residents. Friday evenings only. Extremely accessible for undergrads — no prior clinical experience required.",
-    requirements: ["CPR certification", "Weekly Friday evening availability"],
-    applyUrl:     "https://austinfreeclinic.org",
-    recommended:  false,
-  },
-  {
-    id: 7,
-    name:         "Virtual Medical Scribe — ScribeAmerica",
-    org:          "ScribeAmerica",
-    category:     "Clinical",
-    mode:         "Remote",
-    affiliation:  "Community",
-    location:     "Remote",
-    weeklyHours:  8,
-    metric:       "Clinical Hours",
-    competitive:  2,
-    description:  "Document patient encounters in real time alongside physicians via telehealth platforms. Counts as clinical experience and builds EHR literacy. Paid position — $10–12/hr. Flexible scheduling around classes.",
-    requirements: ["WPM 60+", "HIPAA certification", "Own computer + stable internet"],
-    applyUrl:     "https://www.scribeamerica.com",
-    recommended:  false,
-  },
-  {
-    id: 8,
-    name:         "UT Longhorn Pre-Med Society — Officer",
-    org:          "UT Austin LPM",
-    category:     "Leadership",
-    mode:         "In-Person",
-    affiliation:  "UT-Affiliated",
-    location:     "Austin, TX",
-    weeklyHours:  5,
-    metric:       "Volunteer Hours",
-    competitive:  3,
-    description:  "Officer positions in event planning, mentorship, or community outreach. Demonstrates leadership and organizational skills. Attending physicians and deans are aware of LPM — name recognition on applications.",
-    requirements: ["Active LPM member for 1+ semester", "Run in spring elections"],
-    applyUrl:     "https://www.utlpm.org",
-    recommended:  false,
-  },
-  {
-    id: 9,
-    name:         "St. David's Hospital — Emergency Department Volunteer",
-    org:          "St. David's HealthCare",
-    category:     "Clinical",
-    mode:         "In-Person",
-    affiliation:  "Community",
-    location:     "Austin, TX",
-    weeklyHours:  4,
-    metric:       "Clinical Hours",
-    competitive:  2,
-    description:  "High-acuity ED environment with direct patient exposure. Volunteers assist nursing staff, transport patients, stock supplies, and provide comfort rounding. Some of the most meaningful clinical experience available.",
-    requirements: ["Background check", "Physical exam", "2-shift/month minimum commitment"],
-    applyUrl:     "https://stdavids.com",
-    recommended:  false,
-  },
-  {
-    id: 10,
-    name:         "Mano Amiga Education — Tutoring Coordinator",
-    org:          "Mano Amiga",
-    category:     "Leadership",
-    mode:         "Hybrid",
-    affiliation:  "Community",
-    location:     "Austin, TX",
-    weeklyHours:  4,
-    metric:       "Volunteer Hours",
-    competitive:  2,
-    description:  "Coordinate volunteer tutors serving first-generation college students in East Austin. Builds cultural competency, community health awareness, and leadership skills valued by medical schools with social mission focus.",
-    requirements: ["Bilingual (Spanish) preferred", "Own transportation"],
-    applyUrl:     "https://manoamiga.org",
-    recommended:  false,
-  },
-];
+const OPPORTUNITIES: Opportunity[] = [];
 
 // ── Config maps ───────────────────────────────────────────────────────────────
 
@@ -438,11 +271,45 @@ function FilterChip({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function OpportunitiesPage() {
+  const [opportunities,      setOpportunities]      = useState<Opportunity[]>(OPPORTUNITIES);
+  const [loading,            setLoading]            = useState(true);
   const [selectedOpp,       setSelectedOpp]       = useState<Opportunity | null>(null);
   const [activeCategories,  setActiveCategories]  = useState<Set<Category>>(new Set());
   const [activeTime,        setActiveTime]        = useState("Any");
   const [activeModes,       setActiveModes]       = useState<Set<Mode>>(new Set());
   const [activeAffils,      setActiveAffils]      = useState<Set<Affiliation>>(new Set());
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase
+      .from("opportunities")
+      .select("id, name, org, category, mode, affiliation, location, weekly_hours, metric, competitive, description, requirements, apply_url, recommended, recommend_reason")
+      .order("recommended", { ascending: false })
+      .order("name", { ascending: true })
+      .then(({ data, error }) => {
+        if (!error && data) {
+          const mapped = data.map((row) => ({
+            id: row.id,
+            name: row.name,
+            org: row.org,
+            category: row.category as Category,
+            mode: row.mode as Mode,
+            affiliation: row.affiliation as Affiliation,
+            location: row.location,
+            weeklyHours: row.weekly_hours,
+            metric: row.metric as Metric,
+            competitive: row.competitive,
+            description: row.description,
+            requirements: row.requirements ?? [],
+            applyUrl: row.apply_url,
+            recommended: row.recommended ?? false,
+            recommendReason: row.recommend_reason ?? undefined,
+          }));
+          setOpportunities(mapped);
+        }
+        setLoading(false);
+      });
+  }, []);
 
   function toggleSet<T>(set: Set<T>, item: T): Set<T> {
     const next = new Set(set);
@@ -451,7 +318,7 @@ export default function OpportunitiesPage() {
   }
 
   const filtered = useMemo(() => {
-    return OPPORTUNITIES.filter((o) => {
+    return opportunities.filter((o) => {
       if (activeCategories.size > 0 && !activeCategories.has(o.category)) return false;
       if (activeModes.size   > 0 && !activeModes.has(o.mode))             return false;
       if (activeAffils.size  > 0 && !activeAffils.has(o.affiliation))     return false;
@@ -465,7 +332,7 @@ export default function OpportunitiesPage() {
     });
   }, [activeCategories, activeModes, activeAffils, activeTime]);
 
-  const recommended = OPPORTUNITIES.filter((o) => o.recommended);
+  const recommended = opportunities.filter((o) => o.recommended);
   const rest        = filtered.filter((o) => !o.recommended);
 
   return (
@@ -475,7 +342,7 @@ export default function OpportunitiesPage() {
       <div>
         <h1 className="text-xl font-bold text-white tracking-tight">Opportunities</h1>
         <p className="text-sm text-white/35 mt-0.5">
-          Austin-area and remote experiences to strengthen your application profile.
+          {loading ? "Loading opportunities..." : "Austin-area and remote experiences to strengthen your application profile."}
         </p>
       </div>
 

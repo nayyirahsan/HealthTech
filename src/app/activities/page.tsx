@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
@@ -9,6 +9,7 @@ import {
   ChevronDown, Check,
 } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
+import { createClient } from "@/lib/supabase/client";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -24,6 +25,18 @@ interface ActivityItem {
   organization: string;
   description: string;
   mostMeaningful: boolean;
+}
+
+interface ActivityRow {
+  id: number;
+  name: string;
+  category: Category;
+  hours: number;
+  start_date: string;
+  end_date: string | null;
+  organization: string;
+  description: string;
+  most_meaningful: boolean;
 }
 
 interface FormState {
@@ -67,95 +80,37 @@ const EMPTY_FORM: FormState = {
 
 // ── Mock Data ─────────────────────────────────────────────────────────────────
 
-const SEED_ACTIVITIES: ActivityItem[] = [
-  {
-    id: "1", name: "Emergency Department Volunteer", category: "Clinical", hours: 340,
-    startDate: "2023-06-01", endDate: "2024-05-31",
-    organization: "Dell Seton Medical Center at UT Austin",
-    description: "Assisted nursing staff with patient transport, vital sign documentation, and family communication in a Level I trauma center. Observed over 200 patient encounters including trauma activations and critical care procedures. This experience solidified my commitment to emergency medicine and patient advocacy in high-acuity settings.",
-    mostMeaningful: true,
-  },
-  {
-    id: "2", name: "Neuroinflammation Research Coordinator", category: "Research", hours: 280,
-    startDate: "2023-09-01", endDate: "2024-12-31",
-    organization: "UT Austin Waggoner Center for Alcohol & Addiction Research",
-    description: "Coordinated IRB-approved study on neuroinflammatory markers in early-onset Alzheimer's disease. Recruited 60+ participants, collected blood samples, maintained REDCap database, and contributed to two manuscript submissions currently under peer review at Neurology.",
-    mostMeaningful: true,
-  },
-  {
-    id: "3", name: "Free Clinic Medical Interpreter", category: "Volunteering", hours: 180,
-    startDate: "2022-09-01", endDate: "2024-05-15",
-    organization: "People's Community Clinic",
-    description: "Provided Spanish-English medical interpretation for uninsured patients during clinical encounters. Facilitated communication between physicians and patients during history-taking, diagnosis discussions, and treatment planning for 400+ encounters. Trained 8 new volunteer interpreters.",
-    mostMeaningful: true,
-  },
-  {
-    id: "4", name: "Physician Shadowing — Internal Medicine", category: "Shadowing", hours: 120,
-    startDate: "2023-01-10", endDate: "2023-08-20",
-    organization: "Austin Internal Medicine Associates",
-    description: "Shadowed Dr. Maria Chen across outpatient clinic and hospital rounds. Observed management of complex chronic conditions including DM2, CHF, and CKD. Participated in morning teaching rounds and case conferences.",
-    mostMeaningful: false,
-  },
-  {
-    id: "5", name: "Pre-Medical Society President", category: "Leadership", hours: 200,
-    startDate: "2023-05-01", endDate: "2024-05-01",
-    organization: "UT Austin Pre-Medical Society",
-    description: "Led 400-member organization through full academic year. Organized 12 physician panel events, secured $8,000 in university funding, and established mentorship program pairing freshmen with upperclassmen applicants. Membership grew 35% under my tenure.",
-    mostMeaningful: false,
-  },
-  {
-    id: "6", name: "Biochemistry Teaching Assistant", category: "Leadership", hours: 90,
-    startDate: "2024-01-15", endDate: "2024-05-10",
-    organization: "UT Austin Dept. of Biochemistry",
-    description: "Led weekly discussion sections for BCH 369 with 25 students. Held office hours, graded exams, and designed supplementary review materials. End-of-semester evaluations: 4.8/5.0 instructor rating.",
-    mostMeaningful: false,
-  },
-  {
-    id: "7", name: "Medical Scribe — Orthopedic Surgery", category: "Clinical", hours: 310,
-    startDate: "2022-08-01", endDate: "2023-07-31",
-    organization: "ScribeAmerica / St. David's Medical Center",
-    description: "Documented real-time physician encounters for orthopedic surgery clinic. Completed 500+ encounter notes covering fracture management, post-operative care, and sports medicine. Obtained Level 1 ScribeAmerica certification within first 30 days.",
-    mostMeaningful: false,
-  },
-  {
-    id: "8", name: "Global Health Brigade — Honduras", category: "Volunteering", hours: 60,
-    startDate: "2023-03-05", endDate: "2023-03-12",
-    organization: "UT Austin Global Health Brigade",
-    description: "Participated in week-long medical mission providing primary care to underserved rural communities. Assisted with triage, patient intake, and pharmacy distribution for 1,400 patients across 4 clinic sites in rural Olancho Department.",
-    mostMeaningful: false,
-  },
-  {
-    id: "9", name: "Inpatient Psychiatry Shadow", category: "Shadowing", hours: 80,
-    startDate: "2024-01-08", endDate: "2024-04-30",
-    organization: "Austin Oaks Hospital",
-    description: "Observed inpatient psychiatric unit rounds and individual therapy sessions. Gained exposure to treatment of acute psychosis, major depressive disorder, and substance use disorders in a crisis stabilization unit.",
-    mostMeaningful: false,
-  },
-  {
-    id: "10", name: "CRISPR Gene Editing Research", category: "Research", hours: 160,
-    startDate: "2022-09-01", endDate: "2023-05-15",
-    organization: "UT Austin Patterson Lab",
-    description: "Investigated CRISPR-Cas9 efficiency in primary T-cells under Dr. Kevin Patterson. Performed flow cytometry, Western blot analysis, and cell culture maintenance. Results presented at UT Undergraduate Research Forum — awarded Best Poster in Life Sciences.",
-    mostMeaningful: false,
-  },
-];
+const SEED_ACTIVITIES: ActivityItem[] = [];
 
-// ── Cumulative hours chart — hardcoded monthly data ───────────────────────────
-
-const CHART_DATA = [
-  { month: "May'23",  Clinical: 120, Research: 40,  Volunteering: 50,  Shadowing: 60,  Leadership: 0   },
-  { month: "Jun'23",  Clinical: 210, Research: 40,  Volunteering: 70,  Shadowing: 80,  Leadership: 0   },
-  { month: "Jul'23",  Clinical: 310, Research: 40,  Volunteering: 90,  Shadowing: 120, Leadership: 0   },
-  { month: "Aug'23",  Clinical: 360, Research: 80,  Volunteering: 110, Shadowing: 120, Leadership: 0   },
-  { month: "Sep'23",  Clinical: 395, Research: 130, Volunteering: 140, Shadowing: 120, Leadership: 30  },
-  { month: "Oct'23",  Clinical: 430, Research: 185, Volunteering: 160, Shadowing: 140, Leadership: 65  },
-  { month: "Nov'23",  Clinical: 470, Research: 230, Volunteering: 175, Shadowing: 160, Leadership: 100 },
-  { month: "Dec'23",  Clinical: 500, Research: 280, Volunteering: 195, Shadowing: 175, Leadership: 125 },
-  { month: "Jan'24",  Clinical: 530, Research: 320, Volunteering: 215, Shadowing: 200, Leadership: 185 },
-  { month: "Feb'24",  Clinical: 570, Research: 360, Volunteering: 235, Shadowing: 200, Leadership: 235 },
-  { month: "Mar'24",  Clinical: 610, Research: 400, Volunteering: 260, Shadowing: 200, Leadership: 270 },
-  { month: "Apr'24",  Clinical: 650, Research: 440, Volunteering: 280, Shadowing: 200, Leadership: 290 },
-];
+function buildChartData(items: ActivityItem[]) {
+  if (items.length === 0) return [];
+  const byMonth = new Map<string, Record<string, number>>();
+  for (const item of items) {
+    if (!item.startDate) continue;
+    const month = item.startDate.slice(0, 7);
+    if (!byMonth.has(month)) byMonth.set(month, { Clinical: 0, Research: 0, Volunteering: 0, Shadowing: 0, Leadership: 0, Other: 0 });
+    const slot = byMonth.get(month);
+    if (slot) slot[item.category] += item.hours;
+  }
+  const months = Array.from(byMonth.keys()).sort();
+  const running = { Clinical: 0, Research: 0, Volunteering: 0, Shadowing: 0, Leadership: 0, Other: 0 };
+  return months.map((m) => {
+    const monthTotals = byMonth.get(m)!;
+    running.Clinical += monthTotals.Clinical;
+    running.Research += monthTotals.Research;
+    running.Volunteering += monthTotals.Volunteering;
+    running.Shadowing += monthTotals.Shadowing;
+    running.Leadership += monthTotals.Leadership;
+    return {
+      month: new Date(`${m}-01`).toLocaleDateString("en-US", { month: "short", year: "2-digit" }).replace(" ", "'"),
+      Clinical: running.Clinical,
+      Research: running.Research,
+      Volunteering: running.Volunteering,
+      Shadowing: running.Shadowing,
+      Leadership: running.Leadership,
+    };
+  });
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -596,6 +551,7 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
 
 export default function ActivitiesPage() {
   const [activities, setActivities] = useState<ActivityItem[]>(SEED_ACTIVITIES);
+  const [loading,    setLoading]    = useState(true);
   const [sheetOpen,  setSheetOpen]  = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [search,     setSearch]     = useState("");
@@ -603,6 +559,34 @@ export default function ActivitiesPage() {
   const [form,       setForm]       = useState<FormState>(EMPTY_FORM);
   const [sortCol,    setSortCol]    = useState<"name" | "hours" | "date">("date");
   const [sortDir,    setSortDir]    = useState<"asc" | "desc">("desc");
+
+  function mapActivityRow(row: ActivityRow): ActivityItem {
+    return {
+      id: String(row.id),
+      name: row.name,
+      category: row.category,
+      hours: row.hours,
+      startDate: row.start_date,
+      endDate: row.end_date ?? "",
+      organization: row.organization,
+      description: row.description,
+      mostMeaningful: row.most_meaningful,
+    };
+  }
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase
+      .from("activities")
+      .select("id, name, category, hours, start_date, end_date, organization, description, most_meaningful")
+      .order("start_date", { ascending: false })
+      .then(({ data, error }) => {
+        if (!error && data && data.length > 0) {
+          setActivities(data.map((row) => mapActivityRow(row as ActivityRow)));
+        }
+        setLoading(false);
+      });
+  }, []);
 
   // Derived values
   const meaningfulCount = useMemo(() => activities.filter(a => a.mostMeaningful).length, [activities]);
@@ -616,6 +600,7 @@ export default function ActivitiesPage() {
   }, [activities]);
 
   const totalHours = useMemo(() => activities.reduce((s, a) => s + a.hours, 0), [activities]);
+  const chartData = useMemo(() => buildChartData(activities), [activities]);
 
   const filtered = useMemo(() => {
     let list = activities;
@@ -648,9 +633,27 @@ export default function ActivitiesPage() {
     setSheetOpen(true);
   }
 
-  function submitActivity() {
+  async function submitActivity() {
     if (!form.name.trim() || !form.hours) return;
-    const newAct: ActivityItem = {
+    const payload = {
+      name: form.name.trim(),
+      category: form.category,
+      hours: parseFloat(form.hours) || 0,
+      start_date: form.startDate,
+      end_date: form.endDate || null,
+      organization: form.organization.trim(),
+      description: form.description.trim(),
+      most_meaningful: form.mostMeaningful,
+    };
+
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("activities")
+      .insert(payload)
+      .select("id, name, category, hours, start_date, end_date, organization, description, most_meaningful")
+      .single();
+
+    const newAct: ActivityItem = data && !error ? mapActivityRow(data as ActivityRow) : {
       id: Date.now().toString(),
       name: form.name.trim(),
       category: form.category,
@@ -680,7 +683,8 @@ export default function ActivitiesPage() {
           <div>
             <h1 className="text-xl font-bold text-white tracking-tight">Activities</h1>
             <p className="text-sm text-white/35 mt-0.5">
-              {activities.length} logged · <span className="font-mono text-white/50">{totalHours.toLocaleString()} total hours</span>
+              {loading ? "Loading activities..." : `${activities.length} logged · `}
+              {!loading && <span className="font-mono text-white/50">{totalHours.toLocaleString()} total hours</span>}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -744,7 +748,7 @@ export default function ActivitiesPage() {
               </div>
             </div>
             <ResponsiveContainer width="100%" height={220}>
-              <AreaChart data={CHART_DATA} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+              <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
                 <defs>
                   {CATEGORIES.filter(c => c !== "Other").map(c => (
                     <linearGradient key={c} id={`grad-${c}`} x1="0" y1="0" x2="0" y2="1">

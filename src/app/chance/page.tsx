@@ -41,60 +41,7 @@ function mapRow(row: any): School {
   };
 }
 
-// ── Fallback data ─────────────────────────────────────────────────────────────
-
-const SCHOOLS_FALLBACK: School[] = [
-  { id:  1, name: "Harvard Medical School",           abbr: "HMS",   state: "MA", type: "MD", medianGPA: 3.95, medianMCAT: 524, acceptanceRate: 2.7,  inStateTX: false, utApplied: 28, utAccepted: 1  },
-  { id:  2, name: "Johns Hopkins SOM",                abbr: "JHU",   state: "MD", type: "MD", medianGPA: 3.94, medianMCAT: 523, acceptanceRate: 2.8,  inStateTX: false, utApplied: 24, utAccepted: 1  },
-  { id:  3, name: "Stanford SOM",                     abbr: "STAN",  state: "CA", type: "MD", medianGPA: 3.77, medianMCAT: 520, acceptanceRate: 2.2,  inStateTX: false, utApplied: 18, utAccepted: 1  },
-  { id:  4, name: "UCSF School of Medicine",          abbr: "UCSF",  state: "CA", type: "MD", medianGPA: 3.84, medianMCAT: 518, acceptanceRate: 2.7,  inStateTX: false, utApplied: 16, utAccepted: 1  },
-  { id:  5, name: "Mayo Clinic Alix SOM",             abbr: "MAYO",  state: "MN", type: "MD", medianGPA: 3.92, medianMCAT: 522, acceptanceRate: 1.9,  inStateTX: false, utApplied: 14, utAccepted: 0  },
-  { id:  6, name: "Columbia Vagelos COM",             abbr: "CU",    state: "NY", type: "MD", medianGPA: 3.91, medianMCAT: 522, acceptanceRate: 3.1,  inStateTX: false, utApplied: 20, utAccepted: 1  },
-  { id:  7, name: "Penn Perelman SOM",                abbr: "PENN",  state: "PA", type: "MD", medianGPA: 3.90, medianMCAT: 523, acceptanceRate: 3.3,  inStateTX: false, utApplied: 22, utAccepted: 1  },
-  { id:  8, name: "Yale SOM",                         abbr: "YALE",  state: "CT", type: "MD", medianGPA: 3.88, medianMCAT: 522, acceptanceRate: 3.8,  inStateTX: false, utApplied: 19, utAccepted: 1  },
-  { id:  9, name: "Duke SOM",                         abbr: "DUKE",  state: "NC", type: "MD", medianGPA: 3.87, medianMCAT: 521, acceptanceRate: 3.5,  inStateTX: false, utApplied: 17, utAccepted: 1  },
-  { id: 10, name: "Washington University SOM",        abbr: "WUSTL", state: "MO", type: "MD", medianGPA: 3.92, medianMCAT: 522, acceptanceRate: 3.2,  inStateTX: false, utApplied: 15, utAccepted: 1  },
-  { id: 11, name: "Baylor College of Medicine",       abbr: "BCM",   state: "TX", type: "MD", medianGPA: 3.93, medianMCAT: 522, acceptanceRate: 3.1,  inStateTX: true,  utApplied: 85, utAccepted: 10 },
-  { id: 12, name: "UT Southwestern",                  abbr: "UTSW",  state: "TX", type: "MD", medianGPA: 3.91, medianMCAT: 521, acceptanceRate: 4.2,  inStateTX: true,  utApplied: 92, utAccepted: 17 },
-  { id: 13, name: "Northwestern Feinberg SOM",        abbr: "NW",    state: "IL", type: "MD", medianGPA: 3.88, medianMCAT: 520, acceptanceRate: 4.7,  inStateTX: false, utApplied: 21, utAccepted: 2  },
-  { id: 14, name: "Vanderbilt SOM",                   abbr: "VU",    state: "TN", type: "MD", medianGPA: 3.86, medianMCAT: 520, acceptanceRate: 4.9,  inStateTX: false, utApplied: 19, utAccepted: 2  },
-  { id: 15, name: "Cornell Weill",                    abbr: "WCM",   state: "NY", type: "MD", medianGPA: 3.87, medianMCAT: 521, acceptanceRate: 4.1,  inStateTX: false, utApplied: 17, utAccepted: 1  },
-  { id: 16, name: "University of Michigan",           abbr: "UMICH", state: "MI", type: "MD", medianGPA: 3.88, medianMCAT: 518, acceptanceRate: 5.3,  inStateTX: false, utApplied: 23, utAccepted: 2  },
-  { id: 17, name: "Emory SOM",                        abbr: "EMO",   state: "GA", type: "MD", medianGPA: 3.81, medianMCAT: 517, acceptanceRate: 5.5,  inStateTX: false, utApplied: 18, utAccepted: 2  },
-  { id: 18, name: "Dartmouth Geisel SOM",             abbr: "GS",    state: "NH", type: "MD", medianGPA: 3.67, medianMCAT: 517, acceptanceRate: 4.8,  inStateTX: false, utApplied: 12, utAccepted: 1  },
-  { id: 19, name: "Pittsburgh SOM",                   abbr: "PITT",  state: "PA", type: "MD", medianGPA: 3.75, medianMCAT: 515, acceptanceRate: 6.3,  inStateTX: false, utApplied: 16, utAccepted: 1  },
-  { id: 20, name: "Case Western SOM",                 abbr: "CWRU",  state: "OH", type: "MD", medianGPA: 3.79, medianMCAT: 517, acceptanceRate: 5.9,  inStateTX: false, utApplied: 14, utAccepted: 1  },
-  { id: 21, name: "UT Health Houston McGovern",       abbr: "UTH",   state: "TX", type: "MD", medianGPA: 3.81, medianMCAT: 514, acceptanceRate: 5.8,  inStateTX: true,  utApplied: 88, utAccepted: 18 },
-  { id: 22, name: "Texas A&M COM",                    abbr: "TAMU",  state: "TX", type: "MD", medianGPA: 3.78, medianMCAT: 512, acceptanceRate: 7.4,  inStateTX: true,  utApplied: 76, utAccepted: 17 },
-  { id: 23, name: "UT Rio Grande Valley SOM",         abbr: "UTRGV", state: "TX", type: "MD", medianGPA: 3.65, medianMCAT: 507, acceptanceRate: 10.2, inStateTX: true,  utApplied: 42, utAccepted: 9  },
-  { id: 24, name: "TTUHSC Paul Foster SOM",           abbr: "TTEP",  state: "TX", type: "MD", medianGPA: 3.62, medianMCAT: 507, acceptanceRate: 9.8,  inStateTX: true,  utApplied: 38, utAccepted: 8  },
-  { id: 25, name: "TTUHSC SOM Lubbock",               abbr: "TTU",   state: "TX", type: "MD", medianGPA: 3.64, medianMCAT: 508, acceptanceRate: 9.1,  inStateTX: true,  utApplied: 40, utAccepted: 8  },
-  { id: 26, name: "Georgetown SOM",                   abbr: "GU",    state: "DC", type: "MD", medianGPA: 3.72, medianMCAT: 514, acceptanceRate: 7.1,  inStateTX: false, utApplied: 22, utAccepted: 2  },
-  { id: 27, name: "George Washington SMHS",           abbr: "GWU",   state: "DC", type: "MD", medianGPA: 3.75, medianMCAT: 514, acceptanceRate: 6.9,  inStateTX: false, utApplied: 19, utAccepted: 2  },
-  { id: 28, name: "Tulane SOM",                       abbr: "TUL",   state: "LA", type: "MD", medianGPA: 3.72, medianMCAT: 512, acceptanceRate: 8.6,  inStateTX: false, utApplied: 24, utAccepted: 3  },
-  { id: 29, name: "Loyola Stritch SOM",               abbr: "LUC",   state: "IL", type: "MD", medianGPA: 3.72, medianMCAT: 511, acceptanceRate: 8.4,  inStateTX: false, utApplied: 16, utAccepted: 2  },
-  { id: 30, name: "Cincinnati COM",                   abbr: "UC",    state: "OH", type: "MD", medianGPA: 3.77, medianMCAT: 513, acceptanceRate: 7.9,  inStateTX: false, utApplied: 14, utAccepted: 1  },
-  { id: 31, name: "Vermont Larner COM",               abbr: "UVM",   state: "VT", type: "MD", medianGPA: 3.73, medianMCAT: 513, acceptanceRate: 9.2,  inStateTX: false, utApplied: 11, utAccepted: 1  },
-  { id: 32, name: "Albany Medical College",           abbr: "AMC",   state: "NY", type: "MD", medianGPA: 3.60, medianMCAT: 511, acceptanceRate: 12.1, inStateTX: false, utApplied: 10, utAccepted: 1  },
-  { id: 33, name: "Jefferson Sidney Kimmel",          abbr: "SKMC",  state: "PA", type: "MD", medianGPA: 3.74, medianMCAT: 513, acceptanceRate: 10.0, inStateTX: false, utApplied: 13, utAccepted: 1  },
-  { id: 34, name: "Creighton SOM",                    abbr: "CRE",   state: "NE", type: "MD", medianGPA: 3.71, medianMCAT: 510, acceptanceRate: 12.3, inStateTX: false, utApplied: 11, utAccepted: 2  },
-  { id: 35, name: "Medical College of Wisconsin",     abbr: "MCW",   state: "WI", type: "MD", medianGPA: 3.76, medianMCAT: 512, acceptanceRate: 11.0, inStateTX: false, utApplied: 12, utAccepted: 2  },
-  { id: 36, name: "Drexel COM",                       abbr: "DU",    state: "PA", type: "MD", medianGPA: 3.57, medianMCAT: 510, acceptanceRate: 14.2, inStateTX: false, utApplied: 14, utAccepted: 2  },
-  { id: 37, name: "Florida International Herbert",    abbr: "FIU",   state: "FL", type: "MD", medianGPA: 3.68, medianMCAT: 510, acceptanceRate: 8.1,  inStateTX: false, utApplied: 9,  utAccepted: 1  },
-  { id: 38, name: "LSU SOM New Orleans",              abbr: "LSUNO", state: "LA", type: "MD", medianGPA: 3.68, medianMCAT: 509, acceptanceRate: 11.4, inStateTX: false, utApplied: 15, utAccepted: 2  },
-  { id: 39, name: "Arkansas COM",                     abbr: "UAMS",  state: "AR", type: "MD", medianGPA: 3.62, medianMCAT: 506, acceptanceRate: 13.5, inStateTX: false, utApplied: 10, utAccepted: 2  },
-  { id: 40, name: "South Carolina COM",               abbr: "MUSC",  state: "SC", type: "MD", medianGPA: 3.66, medianMCAT: 508, acceptanceRate: 13.1, inStateTX: false, utApplied: 9,  utAccepted: 1  },
-  { id: 41, name: "Texas COM (TCOM)",                 abbr: "TCOM",  state: "TX", type: "DO", medianGPA: 3.64, medianMCAT: 505, acceptanceRate: 11.2, inStateTX: true,  utApplied: 62, utAccepted: 17 },
-  { id: 42, name: "AT Still SOMA",                    abbr: "ATSU",  state: "AZ", type: "DO", medianGPA: 3.54, medianMCAT: 503, acceptanceRate: 14.8, inStateTX: false, utApplied: 18, utAccepted: 4  },
-  { id: 43, name: "PCOM Georgia",                     abbr: "PCG",   state: "GA", type: "DO", medianGPA: 3.51, medianMCAT: 503, acceptanceRate: 15.3, inStateTX: false, utApplied: 12, utAccepted: 3  },
-  { id: 44, name: "Touro COM Middletown",             abbr: "TOU",   state: "NY", type: "DO", medianGPA: 3.52, medianMCAT: 501, acceptanceRate: 17.1, inStateTX: false, utApplied: 10, utAccepted: 2  },
-  { id: 45, name: "Des Moines University COM",        abbr: "DMU",   state: "IA", type: "DO", medianGPA: 3.59, medianMCAT: 504, acceptanceRate: 14.0, inStateTX: false, utApplied: 11, utAccepted: 2  },
-  { id: 46, name: "Midwestern Glendale COM",          abbr: "MWG",   state: "AZ", type: "DO", medianGPA: 3.57, medianMCAT: 504, acceptanceRate: 16.5, inStateTX: false, utApplied: 14, utAccepted: 3  },
-  { id: 47, name: "Chicago COM CCOM",                 abbr: "CCOM",  state: "IL", type: "DO", medianGPA: 3.57, medianMCAT: 503, acceptanceRate: 17.2, inStateTX: false, utApplied: 10, utAccepted: 2  },
-  { id: 48, name: "NSU Kiran Patel COM",              abbr: "NSU",   state: "FL", type: "DO", medianGPA: 3.55, medianMCAT: 502, acceptanceRate: 16.0, inStateTX: false, utApplied: 9,  utAccepted: 2  },
-  { id: 49, name: "LECOM Bradenton COM",              abbr: "LECOM", state: "FL", type: "DO", medianGPA: 3.47, medianMCAT: 499, acceptanceRate: 20.4, inStateTX: false, utApplied: 8,  utAccepted: 2  },
-  { id: 50, name: "Pacific Northwest University",     abbr: "PNWU",  state: "WA", type: "DO", medianGPA: 3.45, medianMCAT: 499, acceptanceRate: 22.1, inStateTX: false, utApplied: 7,  utAccepted: 2  },
-];
+const SCHOOLS_FALLBACK: School[] = [];
 
 // ── Probability formula ───────────────────────────────────────────────────────
 
@@ -134,9 +81,9 @@ function tierFromProb(p: number): Tier {
 
 // ── UT cohort stat ────────────────────────────────────────────────────────────
 
-function getUTStat(gpa: number, mcat: number) {
+function getUTStat(gpa: number, mcat: number, schools: School[]) {
   let totalApplied = 0, totalAccepted = 0;
-  for (const s of SCHOOLS_FALLBACK) {
+  for (const s of schools) {
     const weight = Math.max(0, 1 - (Math.abs(gpa - s.medianGPA) + Math.abs(mcat - s.medianMCAT) / 30) * 2);
     totalApplied  += Math.round(s.utApplied  * weight);
     totalAccepted += Math.round(s.utAccepted * weight);
@@ -196,7 +143,7 @@ export default function ChancePage() {
   const pageSchools = enriched.slice(page * CELLS_PER_PAGE, (page + 1) * CELLS_PER_PAGE);
 
   const hovered  = hoveredId != null ? enriched.find((s) => s.id === hoveredId) : null;
-  const utStat   = useMemo(() => getUTStat(gpa, mcat), [gpa, mcat]);
+  const utStat   = useMemo(() => getUTStat(gpa, mcat, schools), [gpa, mcat, schools]);
 
   return (
     <div className="min-h-full bg-[#0F172A] p-6 space-y-6">

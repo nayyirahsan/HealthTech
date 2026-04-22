@@ -51,10 +51,6 @@ interface School {
 const GPA_BANDS  = ["3.8–4.0", "3.6–3.79", "3.4–3.59", "< 3.4"];
 const MCAT_BANDS = ["517–528", "510–516", "500–509", "< 500"];
 
-function mockCell(a: number, i: number, ac: number): UTOutcomeCell {
-  return { applied: a, interviewed: i, accepted: ac };
-}
-
 // Convert numeric in_state_bias % → display label
 function biasLabel(val: number | null): School["inStateBias"] {
   if (val == null) return "Low";
@@ -86,228 +82,7 @@ function mapRow(row: any): School {
   };
 }
 
-const SCHOOLS_FALLBACK: School[] = [
-  {
-    id: 1,
-    name: "UT Southwestern Medical School",
-    abbr: "UTSW",
-    state: "TX",
-    type: "MD",
-    medianGPA: 3.91,
-    medianMCAT: 521,
-    acceptanceRate: 4.2,
-    inStateBias: "High",
-    utAcceptRate: 18,
-    tuition: 23,
-    classSize: 230,
-    overview:
-      "UT Southwestern is a flagship Texas research institution consistently ranked top-20. Strong USMLE Step 1 pass rates and excellent residency match outcomes. Heavily favors Texas residents via TMDSAS.",
-    secondaries: [
-      { prompt: "Describe a challenge you've overcome and what it taught you.", wordLimit: 350 },
-      { prompt: "Why UT Southwestern specifically? What draws you to our community?", wordLimit: 300 },
-      { prompt: "Discuss your most meaningful research experience.", wordLimit: 400 },
-    ],
-    prerequisites: ["Biology (2 semesters + lab)", "Chemistry (2 semesters + lab)", "Organic Chemistry (2 semesters + lab)", "Biochemistry", "Physics (2 semesters + lab)", "Math/Statistics", "English (2 semesters)"],
-    utOutcomes: {
-      "3.8–4.0":  { "517–528": mockCell(12, 9, 7),  "510–516": mockCell(8, 5, 3),  "500–509": mockCell(4, 1, 0),  "< 500": mockCell(1, 0, 0) },
-      "3.6–3.79": { "517–528": mockCell(10, 6, 3),  "510–516": mockCell(9, 4, 2),  "500–509": mockCell(5, 1, 0),  "< 500": mockCell(2, 0, 0) },
-      "3.4–3.59": { "517–528": mockCell(7, 3, 1),   "510–516": mockCell(6, 2, 0),  "500–509": mockCell(3, 0, 0),  "< 500": mockCell(1, 0, 0) },
-      "< 3.4":    { "517–528": mockCell(4, 1, 0),   "510–516": mockCell(3, 0, 0),  "500–509": mockCell(2, 0, 0),  "< 500": mockCell(1, 0, 0) },
-    },
-  },
-  {
-    id: 2,
-    name: "Baylor College of Medicine",
-    abbr: "BCM",
-    state: "TX",
-    type: "MD",
-    medianGPA: 3.93,
-    medianMCAT: 522,
-    acceptanceRate: 3.1,
-    inStateBias: "High",
-    utAcceptRate: 12,
-    tuition: 26,
-    classSize: 185,
-    overview:
-      "Baylor is one of the most selective medical schools in the country and is tuition-free for most students through endowment scholarships. Exceptional research infrastructure and Houston Medical Center affiliation.",
-    secondaries: [
-      { prompt: "What experiences have shaped your decision to pursue medicine?", wordLimit: 500 },
-      { prompt: "Describe a time you navigated a difficult ethical situation.", wordLimit: 400 },
-    ],
-    prerequisites: ["Biology (2 semesters + lab)", "General Chemistry (2 semesters + lab)", "Organic Chemistry (2 semesters + lab)", "Physics (2 semesters + lab)", "English (2 semesters)", "Calculus or Statistics"],
-    utOutcomes: {
-      "3.8–4.0":  { "517–528": mockCell(15, 8, 5),  "510–516": mockCell(10, 4, 2), "500–509": mockCell(5, 1, 0),  "< 500": mockCell(1, 0, 0) },
-      "3.6–3.79": { "517–528": mockCell(12, 5, 2),  "510–516": mockCell(8, 3, 1),  "500–509": mockCell(4, 0, 0),  "< 500": mockCell(1, 0, 0) },
-      "3.4–3.59": { "517–528": mockCell(6, 2, 0),   "510–516": mockCell(4, 1, 0),  "500–509": mockCell(2, 0, 0),  "< 500": mockCell(0, 0, 0) },
-      "< 3.4":    { "517–528": mockCell(3, 0, 0),   "510–516": mockCell(2, 0, 0),  "500–509": mockCell(1, 0, 0),  "< 500": mockCell(0, 0, 0) },
-    },
-  },
-  {
-    id: 3,
-    name: "Texas A&M College of Medicine",
-    abbr: "TAMU",
-    state: "TX",
-    type: "MD",
-    medianGPA: 3.78,
-    medianMCAT: 512,
-    acceptanceRate: 7.4,
-    inStateBias: "High",
-    utAcceptRate: 22,
-    tuition: 19,
-    classSize: 200,
-    overview:
-      "Texas A&M COM is a strong Texas TMDSAS school with a collaborative culture and rural medicine emphasis. Newer curriculum with early clinical exposure. Strong match rates to primary care and internal medicine.",
-    secondaries: [
-      { prompt: "Why Texas A&M? What specifically about our mission resonates with you?", wordLimit: 300 },
-      { prompt: "Describe a leadership experience and its impact.", wordLimit: 350 },
-      { prompt: "How have you contributed to your community?", wordLimit: 350 },
-    ],
-    prerequisites: ["Biology (2 semesters + lab)", "Chemistry (2 semesters + lab)", "Organic Chemistry (1 semester + lab)", "Biochemistry", "Physics (2 semesters + lab)", "Statistics or Calculus", "English (2 semesters)"],
-    utOutcomes: {
-      "3.8–4.0":  { "517–528": mockCell(10, 8, 6),  "510–516": mockCell(12, 9, 7),  "500–509": mockCell(6, 4, 2),  "< 500": mockCell(2, 1, 0) },
-      "3.6–3.79": { "517–528": mockCell(14, 10, 7), "510–516": mockCell(15, 11, 8), "500–509": mockCell(8, 4, 2),  "< 500": mockCell(3, 1, 0) },
-      "3.4–3.59": { "517–528": mockCell(8, 5, 3),   "510–516": mockCell(9, 6, 3),   "500–509": mockCell(5, 2, 1),  "< 500": mockCell(2, 0, 0) },
-      "< 3.4":    { "517–528": mockCell(4, 2, 1),   "510–516": mockCell(5, 2, 1),   "500–509": mockCell(3, 1, 0),  "< 500": mockCell(1, 0, 0) },
-    },
-  },
-  {
-    id: 4,
-    name: "UT Health Houston — McGovern",
-    abbr: "UTH",
-    state: "TX",
-    type: "MD",
-    medianGPA: 3.81,
-    medianMCAT: 514,
-    acceptanceRate: 5.8,
-    inStateBias: "High",
-    utAcceptRate: 20,
-    tuition: 21,
-    classSize: 240,
-    overview:
-      "McGovern Medical School at UTHealth is one of the largest medical schools in the US with exceptional clinical diversity in the Texas Medical Center. Strong primary care pipeline and community health mission.",
-    secondaries: [
-      { prompt: "Describe how your background will contribute to diversity at McGovern.", wordLimit: 500 },
-      { prompt: "What do you see as the most important issue in healthcare today?", wordLimit: 400 },
-    ],
-    prerequisites: ["Biology (2 semesters + lab)", "Chemistry (2 semesters + lab)", "Organic Chemistry (2 semesters + lab)", "Biochemistry (recommended)", "Physics (2 semesters + lab)", "Math (2 semesters)", "English (2 semesters)"],
-    utOutcomes: {
-      "3.8–4.0":  { "517–528": mockCell(11, 9, 6),  "510–516": mockCell(13, 10, 7), "500–509": mockCell(7, 4, 2),  "< 500": mockCell(2, 1, 0) },
-      "3.6–3.79": { "517–528": mockCell(13, 9, 6),  "510–516": mockCell(16, 11, 8), "500–509": mockCell(9, 5, 2),  "< 500": mockCell(3, 1, 0) },
-      "3.4–3.59": { "517–528": mockCell(7, 4, 2),   "510–516": mockCell(10, 6, 3),  "500–509": mockCell(6, 3, 1),  "< 500": mockCell(2, 0, 0) },
-      "< 3.4":    { "517–528": mockCell(3, 1, 0),   "510–516": mockCell(4, 2, 1),   "500–509": mockCell(3, 1, 0),  "< 500": mockCell(1, 0, 0) },
-    },
-  },
-  {
-    id: 5,
-    name: "Mayo Clinic Alix School of Medicine",
-    abbr: "MAYO",
-    state: "MN",
-    type: "MD",
-    medianGPA: 3.92,
-    medianMCAT: 522,
-    acceptanceRate: 1.9,
-    inStateBias: "Low",
-    utAcceptRate: 4,
-    tuition: 62,
-    classSize: 56,
-    overview:
-      "One of the most selective and prestigious medical schools globally. Tiny class size, full-tuition scholarships for most students, and unparalleled clinical exposure at the #1-ranked Mayo Clinic hospital system.",
-    secondaries: [
-      { prompt: "Describe a time you contributed to a team. What was your role?", wordLimit: 600 },
-      { prompt: "Tell us about a patient interaction that shaped your perspective.", wordLimit: 500 },
-      { prompt: "What is your greatest weakness?", wordLimit: 300 },
-    ],
-    prerequisites: ["Biology (with lab)", "Chemistry (with lab)", "Organic Chemistry (with lab)", "Biochemistry", "Physics (with lab)", "Statistics", "Writing-intensive course"],
-    utOutcomes: {
-      "3.8–4.0":  { "517–528": mockCell(8, 3, 1),  "510–516": mockCell(5, 1, 0),  "500–509": mockCell(2, 0, 0), "< 500": mockCell(0, 0, 0) },
-      "3.6–3.79": { "517–528": mockCell(6, 1, 0),  "510–516": mockCell(4, 0, 0),  "500–509": mockCell(1, 0, 0), "< 500": mockCell(0, 0, 0) },
-      "3.4–3.59": { "517–528": mockCell(3, 0, 0),  "510–516": mockCell(2, 0, 0),  "500–509": mockCell(0, 0, 0), "< 500": mockCell(0, 0, 0) },
-      "< 3.4":    { "517–528": mockCell(1, 0, 0),  "510–516": mockCell(0, 0, 0),  "500–509": mockCell(0, 0, 0), "< 500": mockCell(0, 0, 0) },
-    },
-  },
-  {
-    id: 6,
-    name: "Johns Hopkins School of Medicine",
-    abbr: "JHU",
-    state: "MD",
-    type: "MD",
-    medianGPA: 3.94,
-    medianMCAT: 523,
-    acceptanceRate: 2.8,
-    inStateBias: "Low",
-    utAcceptRate: 5,
-    tuition: 58,
-    classSize: 120,
-    overview:
-      "Johns Hopkins consistently ranks #1-3 in research and is a pinnacle of academic medicine. Exceptionally selective; expects NIH-level research productivity and strong humanitarian narrative. Nearly full financial aid.",
-    secondaries: [
-      { prompt: "Describe your most significant research contribution.", wordLimit: null },
-      { prompt: "How have your experiences prepared you for a career in academic medicine?", wordLimit: null },
-    ],
-    prerequisites: ["Biology (2 semesters + lab)", "Chemistry (2 semesters + lab)", "Organic Chemistry (2 semesters + lab)", "Physics (2 semesters + lab)", "Biochemistry", "Math (1 semester)", "Writing (1 semester)"],
-    utOutcomes: {
-      "3.8–4.0":  { "517–528": mockCell(6, 2, 1),  "510–516": mockCell(4, 1, 0),  "500–509": mockCell(1, 0, 0), "< 500": mockCell(0, 0, 0) },
-      "3.6–3.79": { "517–528": mockCell(5, 1, 0),  "510–516": mockCell(3, 0, 0),  "500–509": mockCell(1, 0, 0), "< 500": mockCell(0, 0, 0) },
-      "3.4–3.59": { "517–528": mockCell(2, 0, 0),  "510–516": mockCell(1, 0, 0),  "500–509": mockCell(0, 0, 0), "< 500": mockCell(0, 0, 0) },
-      "< 3.4":    { "517–528": mockCell(1, 0, 0),  "510–516": mockCell(0, 0, 0),  "500–509": mockCell(0, 0, 0), "< 500": mockCell(0, 0, 0) },
-    },
-  },
-  {
-    id: 7,
-    name: "Texas College of Osteopathic Medicine",
-    abbr: "TCOM",
-    state: "TX",
-    type: "DO",
-    medianGPA: 3.64,
-    medianMCAT: 505,
-    acceptanceRate: 11.2,
-    inStateBias: "High",
-    utAcceptRate: 28,
-    tuition: 17,
-    classSize: 175,
-    overview:
-      "TCOM at UNT Health Science Center is the only public osteopathic school in Texas and one of the most affordable DO programs in the country. Strong primary care focus, excellent rural health training, and Texas-friendly AACOMAS pathway.",
-    secondaries: [
-      { prompt: "Why osteopathic medicine? Describe what drew you to the DO philosophy.", wordLimit: 500 },
-      { prompt: "Tell us about a meaningful community service experience.", wordLimit: 400 },
-    ],
-    prerequisites: ["Biology (2 semesters + lab)", "Chemistry (2 semesters + lab)", "Organic Chemistry (2 semesters + lab)", "Biochemistry (recommended)", "Physics (2 semesters + lab)", "English (2 semesters)"],
-    utOutcomes: {
-      "3.8–4.0":  { "517–528": mockCell(5, 4, 3),  "510–516": mockCell(7, 6, 5),  "500–509": mockCell(8, 7, 5), "< 500": mockCell(3, 2, 1) },
-      "3.6–3.79": { "517–528": mockCell(8, 7, 5),  "510–516": mockCell(12, 10, 8), "500–509": mockCell(9, 7, 5), "< 500": mockCell(4, 3, 2) },
-      "3.4–3.59": { "517–528": mockCell(6, 5, 3),  "510–516": mockCell(9, 7, 5),  "500–509": mockCell(8, 6, 4), "< 500": mockCell(4, 2, 1) },
-      "< 3.4":    { "517–528": mockCell(3, 2, 1),  "510–516": mockCell(5, 3, 2),  "500–509": mockCell(6, 4, 2), "< 500": mockCell(3, 1, 0) },
-    },
-  },
-  {
-    id: 8,
-    name: "University of Michigan Medical School",
-    abbr: "UMICH",
-    state: "MI",
-    type: "MD",
-    medianGPA: 3.88,
-    medianMCAT: 518,
-    acceptanceRate: 5.3,
-    inStateBias: "Moderate",
-    utAcceptRate: 7,
-    tuition: 37,
-    classSize: 170,
-    overview:
-      "University of Michigan is a top-10 research powerhouse with an extremely collaborative curriculum. The Preclerkship program is pass/fail. Strong residency matching across all specialties. Beautiful campus environment.",
-    secondaries: [
-      { prompt: "Describe a situation where you had to adapt to a difficult circumstance.", wordLimit: 400 },
-      { prompt: "What do you hope to contribute to the Michigan medical community?", wordLimit: 400 },
-      { prompt: "Tell us about a mentor who influenced your path.", wordLimit: 350 },
-    ],
-    prerequisites: ["Biology (2 semesters + lab)", "Chemistry (2 semesters + lab)", "Organic Chemistry (2 semesters + lab)", "Biochemistry", "Physics (2 semesters + lab)", "Statistics", "Writing-intensive courses (2)"],
-    utOutcomes: {
-      "3.8–4.0":  { "517–528": mockCell(7, 4, 2),  "510–516": mockCell(5, 2, 1),  "500–509": mockCell(2, 0, 0), "< 500": mockCell(0, 0, 0) },
-      "3.6–3.79": { "517–528": mockCell(6, 3, 1),  "510–516": mockCell(5, 2, 0),  "500–509": mockCell(2, 0, 0), "< 500": mockCell(0, 0, 0) },
-      "3.4–3.59": { "517–528": mockCell(3, 1, 0),  "510–516": mockCell(3, 1, 0),  "500–509": mockCell(1, 0, 0), "< 500": mockCell(0, 0, 0) },
-      "< 3.4":    { "517–528": mockCell(1, 0, 0),  "510–516": mockCell(1, 0, 0),  "500–509": mockCell(0, 0, 0), "< 500": mockCell(0, 0, 0) },
-    },
-  },
-];
+const SCHOOLS_FALLBACK: School[] = [];
 
 // ── Sort helpers ──────────────────────────────────────────────────────────────
 
@@ -629,6 +404,7 @@ function RangeFilter({
 export default function SchoolsPage() {
   const [schools,     setSchools]     = useState<School[]>(SCHOOLS_FALLBACK);
   const [loading,     setLoading]     = useState(true);
+  const [loadError,   setLoadError]   = useState<string | null>(null);
   const [selected,    setSelected]    = useState<School | null>(null);
   const [search,      setSearch]      = useState("");
   const [typeFilter,  setTypeFilter]  = useState<"All" | "MD" | "DO">("All");
@@ -646,12 +422,16 @@ export default function SchoolsPage() {
     const supabase = createClient();
     supabase
       .from("schools")
-      .select("*")
+      .select("id, name, state, type, median_gpa, median_mcat, acceptance_rate, in_state_bias, tuition_in_state, class_size, mission_keywords, prereqs")
       .order("name")
       .then(({ data, error }) => {
-        if (!error && data && data.length > 0) {
-          setSchools(data.map(mapRow));
+        if (error) {
+          setLoadError(error.message);
+          setSchools([]);
+          setLoading(false);
+          return;
         }
+        setSchools((data ?? []).map(mapRow));
         setLoading(false);
       });
   }, []);
@@ -674,8 +454,9 @@ export default function SchoolsPage() {
       if (typeFilter !== "All" && s.type !== typeFilter) return false;
       if (stateFilter === "In-State"     && s.state !== "TX") return false;
       if (stateFilter === "Out-of-State" && s.state === "TX") return false;
-      if (s.medianGPA  < gpaRange[0]  || s.medianGPA  > gpaRange[1])  return false;
-      if (s.medianMCAT < mcatRange[0] || s.medianMCAT > mcatRange[1]) return false;
+      // Keep rows with unknown stats visible; only filter when a value exists.
+      if (s.medianGPA > 0 && (s.medianGPA < gpaRange[0] || s.medianGPA > gpaRange[1])) return false;
+      if (s.medianMCAT > 0 && (s.medianMCAT < mcatRange[0] || s.medianMCAT > mcatRange[1])) return false;
       return true;
     });
 
@@ -691,8 +472,21 @@ export default function SchoolsPage() {
     return list;
   }, [search, typeFilter, stateFilter, gpaRange, mcatRange, sortKey, sortDir]);
 
-  const totalPages  = Math.ceil(rows.length / ROWS_PER_PAGE);
-  const visibleRows = rows.slice(page * ROWS_PER_PAGE, (page + 1) * ROWS_PER_PAGE);
+  const usingDefaultFilters =
+    search.trim() === "" &&
+    typeFilter === "All" &&
+    stateFilter === "All" &&
+    gpaRange[0] === 3.0 &&
+    gpaRange[1] === 4.0 &&
+    mcatRange[0] === 495 &&
+    mcatRange[1] === 528 &&
+    sortKey === null &&
+    sortDir === null;
+
+  const displayRows = rows.length === 0 && usingDefaultFilters ? schools : rows;
+
+  const totalPages  = Math.ceil(displayRows.length / ROWS_PER_PAGE);
+  const visibleRows = displayRows.slice(page * ROWS_PER_PAGE, (page + 1) * ROWS_PER_PAGE);
 
   return (
     <div className="min-h-full bg-[#0F172A] flex flex-col">
@@ -703,7 +497,7 @@ export default function SchoolsPage() {
           <div>
             <h1 className="text-xl font-bold text-white tracking-tight">School Explorer</h1>
             <p className="text-sm text-white/35 mt-0.5">
-              {loading ? "Loading schools…" : "Click any row for details"}
+              {loading ? "Loading schools…" : loadError ? `Unable to load schools: ${loadError}` : "Click any row for details"}
             </p>
           </div>
 
@@ -805,7 +599,7 @@ export default function SchoolsPage() {
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 ? (
+            {displayRows.length === 0 ? (
               <tr>
                 <td colSpan={7} className="text-center py-16 text-white/25 text-sm">
                   No schools match your filters.
@@ -836,10 +630,10 @@ export default function SchoolsPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 font-mono text-sm text-white/70 tabular-nums">
-                    {school.medianGPA.toFixed(2)}
+                    {school.medianGPA > 0 ? school.medianGPA.toFixed(2) : "—"}
                   </td>
                   <td className="px-4 py-3 font-mono text-sm text-white/70 tabular-nums">
-                    {school.medianMCAT}
+                    {school.medianMCAT > 0 ? school.medianMCAT : "—"}
                   </td>
                   <td className="px-4 py-3 font-mono text-sm text-white/70 tabular-nums">
                     {school.acceptanceRate}%
@@ -862,7 +656,7 @@ export default function SchoolsPage() {
         {totalPages > 1 && (
           <div className="border-t border-white/[0.05] px-6 py-3 flex items-center justify-between">
             <span className="text-xs text-white/30">
-              {page * ROWS_PER_PAGE + 1}–{Math.min((page + 1) * ROWS_PER_PAGE, rows.length)} of {rows.length} schools
+              {page * ROWS_PER_PAGE + 1}–{Math.min((page + 1) * ROWS_PER_PAGE, displayRows.length)} of {displayRows.length} schools
             </span>
             <div className="flex items-center gap-2">
               <button

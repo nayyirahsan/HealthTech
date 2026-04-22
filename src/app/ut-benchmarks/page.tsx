@@ -2,6 +2,10 @@
 
 import Link from "next/link";
 import {
+  useEffect,
+  useState,
+} from "react";
+import {
   RadarChart,
   Radar,
   PolarGrid,
@@ -11,23 +15,24 @@ import {
 } from "recharts";
 import { TrendingUp, TrendingDown, ArrowRight } from "lucide-react";
 import { useTheme } from "@/app/providers";
+import { createClient } from "@/lib/supabase/client";
 
 // ── Default data ──────────────────────────────────────────────────────────────
 
-// USER stats — placeholder until auth is wired up
-const USER = {
-  gpa:            3.75,
-  mcat:           512,
-  clinicalHours:  850,
-  researchHours:  400,
-  volunteerHours: 180,
-  shadowingHours: 90,
+const USER_DEFAULT = {
+  gpa: 0,
+  mcat: 0,
+  clinicalHours: 0,
+  researchHours: 0,
+  volunteerHours: 0,
+  shadowingHours: 0,
 };
 
-// Known constants from UT HPO reports (hours not in DB)
-const UT_HOURS = {
-  clinicalHours:  1200,
-  researchHours:  600,
+const UT_DEFAULT = {
+  gpa: 3.82,
+  mcat: 513,
+  clinicalHours: 1200,
+  researchHours: 600,
   volunteerHours: 250,
   shadowingHours: 120,
 };
@@ -52,7 +57,7 @@ function norm(value: number, key: keyof typeof AXIS_MAX) {
 // ── Stat card config ─────────────────────────────────────────────────────────
 
 const STATS: {
-  key:      keyof typeof USER;
+  key:      keyof typeof USER_DEFAULT;
   label:    string;
   unit:     string;
   format:   (v: number) => string;
@@ -218,6 +223,9 @@ function RadarLegend() {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function UTBenchmarksPage() {
+  const [user, setUser] = useState(USER_DEFAULT);
+  const [utMedian, setUtMedian] = useState(UT_DEFAULT);
+  const [loading, setLoading] = useState(true);
   const { theme } = useTheme();
   const isLight = theme === "light";
   const gridStroke   = isLight ? "rgba(0,0,0,0.10)"  : "rgba(255,255,255,0.08)";
@@ -226,23 +234,53 @@ export default function UTBenchmarksPage() {
   const tickFill     = isLight ? "rgba(0,0,0,0.55)"  : "rgba(255,255,255,0.40)";
   const dotFill      = isLight ? "rgba(0,0,0,0.40)"  : "rgba(255,255,255,0.40)";
 
-  // Published UT Austin HPO medians for Dell Medical School (2021–2023 reports)
-  const UT_MEDIAN = {
-    gpa:  3.82,
-    mcat: 513,
-    ...UT_HOURS,
-  };
+  useEffect(() => {
+    const supabase = createClient();
+    Promise.all([
+      supabase
+        .from("users")
+        .select("gpa, mcat_score, clinical_hours, research_hours, volunteer_hours, shadowing_hours")
+        .limit(1),
+      supabase
+        .from("ut_benchmarks")
+        .select("metric, median_value"),
+    ]).then(([userRes, benchRes]) => {
+      if (!userRes.error && userRes.data && userRes.data.length > 0) {
+        const u = userRes.data[0];
+        setUser({
+          gpa: u.gpa ?? 0,
+          mcat: u.mcat_score ?? 0,
+          clinicalHours: u.clinical_hours ?? 0,
+          researchHours: u.research_hours ?? 0,
+          volunteerHours: u.volunteer_hours ?? 0,
+          shadowingHours: u.shadowing_hours ?? 0,
+        });
+      }
+      if (!benchRes.error && benchRes.data && benchRes.data.length > 0) {
+        const lookup = Object.fromEntries(benchRes.data.map((r) => [r.metric, Number(r.median_value)]));
+        setUtMedian({
+          gpa: lookup.gpa ?? UT_DEFAULT.gpa,
+          mcat: lookup.mcat ?? UT_DEFAULT.mcat,
+          clinicalHours: lookup.clinical_hours ?? UT_DEFAULT.clinicalHours,
+          researchHours: lookup.research_hours ?? UT_DEFAULT.researchHours,
+          volunteerHours: lookup.volunteer_hours ?? UT_DEFAULT.volunteerHours,
+          shadowingHours: lookup.shadowing_hours ?? UT_DEFAULT.shadowingHours,
+        });
+      }
+      setLoading(false);
+    });
+  }, []);
 
   const RADAR_DATA = [
-    { axis: "GPA",       user: norm(USER.gpa,            "gpa"),            median: norm(UT_MEDIAN.gpa,            "gpa")            },
-    { axis: "MCAT",      user: norm(USER.mcat,           "mcat"),           median: norm(UT_MEDIAN.mcat,           "mcat")           },
-    { axis: "Clinical",  user: norm(USER.clinicalHours,  "clinicalHours"),  median: norm(UT_MEDIAN.clinicalHours,  "clinicalHours")  },
-    { axis: "Research",  user: norm(USER.researchHours,  "researchHours"),  median: norm(UT_MEDIAN.researchHours,  "researchHours")  },
-    { axis: "Volunteer", user: norm(USER.volunteerHours, "volunteerHours"), median: norm(UT_MEDIAN.volunteerHours, "volunteerHours") },
-    { axis: "Shadowing", user: norm(USER.shadowingHours, "shadowingHours"), median: norm(UT_MEDIAN.shadowingHours, "shadowingHours") },
+    { axis: "GPA",       user: norm(user.gpa,            "gpa"),            median: norm(utMedian.gpa,            "gpa")            },
+    { axis: "MCAT",      user: norm(user.mcat,           "mcat"),           median: norm(utMedian.mcat,           "mcat")           },
+    { axis: "Clinical",  user: norm(user.clinicalHours,  "clinicalHours"),  median: norm(utMedian.clinicalHours,  "clinicalHours")  },
+    { axis: "Research",  user: norm(user.researchHours,  "researchHours"),  median: norm(utMedian.researchHours,  "researchHours")  },
+    { axis: "Volunteer", user: norm(user.volunteerHours, "volunteerHours"), median: norm(utMedian.volunteerHours, "volunteerHours") },
+    { axis: "Shadowing", user: norm(user.shadowingHours, "shadowingHours"), median: norm(utMedian.shadowingHours, "shadowingHours") },
   ];
 
-  const aheadCount  = STATS.filter(({ key }) => USER[key] >= UT_MEDIAN[key]).length;
+  const aheadCount  = STATS.filter(({ key }) => user[key] >= utMedian[key]).length;
   const behindCount = STATS.length - aheadCount;
 
   return (
@@ -253,7 +291,7 @@ export default function UTBenchmarksPage() {
         <div>
           <h1 className="text-xl font-bold text-white tracking-tight">UT Benchmarks</h1>
           <p className="text-sm text-white/35 mt-0.5">
-            How you compare to UT Austin admitted students · HPO data 2021–2023
+            {loading ? "Loading benchmark data..." : "How you compare to UT Austin admitted students · HPO data 2021–2023"}
           </p>
         </div>
 
@@ -324,8 +362,8 @@ export default function UTBenchmarksPage() {
           <StatCard
             key={key}
             label={label}
-            userValue={USER[key]}
-            medianValue={UT_MEDIAN[key]}
+            userValue={user[key]}
+            medianValue={utMedian[key]}
             format={format}
             unit={unit}
             cta={cta}

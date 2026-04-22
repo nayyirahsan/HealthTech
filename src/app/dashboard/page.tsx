@@ -14,13 +14,12 @@ import { createClient } from "@/lib/supabase/client";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-// Placeholder user stats — replaced with real data once auth is wired up
-const USER = {
-  name: "Alex",
-  gpa: 3.75,
-  mcat: 512,
-  clinicalHours: 850,
-  researchHours: 400,
+const USER_DEFAULT = {
+  name: "Student",
+  gpa: 0,
+  mcat: 0,
+  clinicalHours: 0,
+  researchHours: 0,
 };
 
 // Published UT Austin HPO medians for Dell Medical School (2021–2023 reports)
@@ -105,13 +104,7 @@ function daysUntil(date: Date): number {
 
 // ── Fallback school list (used while loading or if DB is empty) ───────────────
 
-const SCHOOLS_FALLBACK: SchoolRow[] = [
-  { id: 1, name: "UT Southwestern",         abbr: "UTSW",  medianGPA: 3.91, medianMCAT: 521, acceptanceRate: 4.2,  pct: 0, tier: "reach"  },
-  { id: 2, name: "Baylor College of Medicine", abbr: "BCM", medianGPA: 3.93, medianMCAT: 522, acceptanceRate: 3.1, pct: 0, tier: "reach"  },
-  { id: 3, name: "UT Health Houston McGovern", abbr: "UTH", medianGPA: 3.81, medianMCAT: 514, acceptanceRate: 5.8, pct: 0, tier: "target" },
-  { id: 4, name: "Texas A&M COM",            abbr: "TAMU", medianGPA: 3.78, medianMCAT: 512, acceptanceRate: 7.4,  pct: 0, tier: "target" },
-  { id: 5, name: "Dell Medical School",      abbr: "DELL", medianGPA: 3.82, medianMCAT: 517, acceptanceRate: 3.2,  pct: 0, tier: "reach"  },
-].map((s) => ({ ...s, pct: calcProbability(USER.gpa, USER.mcat, s), tier: tierFromProb(calcProbability(USER.gpa, USER.mcat, s)) }));
+const SCHOOLS_FALLBACK: SchoolRow[] = [];
 
 // ── Stat Card ─────────────────────────────────────────────────────────────────
 
@@ -185,13 +178,31 @@ export default function DashboardPage() {
   const { theme } = useTheme();
   const emptyFill = theme === "light" ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.05)";
 
+  const [user,          setUser]          = useState(USER_DEFAULT);
   const [schools,       setSchools]       = useState<SchoolRow[]>(SCHOOLS_FALLBACK);
-  const [acceptancePct, setAcceptancePct] = useState(41); // fallback from AAMC grid
+  const [acceptancePct, setAcceptancePct] = useState(0);
 
   const daysToOpen = daysUntil(TMDSAS_OPEN);
 
   useEffect(() => {
     const supabase = createClient();
+
+    supabase
+      .from("users")
+      .select("full_name, gpa, mcat_score, clinical_hours, research_hours")
+      .limit(1)
+      .then(({ data, error }) => {
+        if (!error && data && data.length > 0) {
+          const row = data[0];
+          setUser({
+            name: row.full_name ?? USER_DEFAULT.name,
+            gpa: row.gpa ?? 0,
+            mcat: row.mcat_score ?? 0,
+            clinicalHours: row.clinical_hours ?? 0,
+            researchHours: row.research_hours ?? 0,
+          });
+        }
+      });
 
     // Fetch TX MD schools with real medians
     supabase
@@ -210,8 +221,8 @@ export default function DashboardPage() {
             .map(mapRow)
             .map((s) => ({
               ...s,
-              pct:  calcProbability(USER.gpa, USER.mcat, s),
-              tier: tierFromProb(calcProbability(USER.gpa, USER.mcat, s)),
+              pct:  calcProbability(user.gpa, user.mcat, s),
+              tier: tierFromProb(calcProbability(user.gpa, user.mcat, s)),
             }))
             .sort((a, b) => b.pct - a.pct);
           setSchools(enriched);
@@ -222,55 +233,55 @@ export default function DashboardPage() {
     supabase
       .from("acceptance_grid")
       .select("acceptance_rate")
-      .eq("gpa_range",  gpaRangeBucket(USER.gpa))
-      .eq("mcat_range", mcatRangeBucket(USER.mcat))
+      .eq("gpa_range",  gpaRangeBucket(user.gpa))
+      .eq("mcat_range", mcatRangeBucket(user.mcat))
       .limit(1)
       .then(({ data, error }) => {
         if (!error && data && data.length > 0) {
           setAcceptancePct(Math.round(data[0].acceptance_rate));
         }
       });
-  }, []);
+  }, [user.gpa, user.mcat]);
 
   const donutData = [
     { value: acceptancePct },
     { value: 100 - acceptancePct },
   ];
 
-  const clinicalGap = UT_MEDIAN.clinicalHours - USER.clinicalHours;
+  const clinicalGap = UT_MEDIAN.clinicalHours - user.clinicalHours;
 
   const stats = [
     {
       label: "GPA",
-      displayValue: USER.gpa.toFixed(2),
-      userPct: (USER.gpa / 4.0) * 100,
+      displayValue: user.gpa.toFixed(2),
+      userPct: (user.gpa / 4.0) * 100,
       medianPct: (UT_MEDIAN.gpa / 4.0) * 100,
       displayMedian: UT_MEDIAN.gpa.toFixed(2),
-      delta: USER.gpa - UT_MEDIAN.gpa,
+      delta: user.gpa - UT_MEDIAN.gpa,
     },
     {
       label: "MCAT",
-      displayValue: USER.mcat.toString(),
-      userPct: (USER.mcat / 528) * 100,
+      displayValue: user.mcat.toString(),
+      userPct: (user.mcat / 528) * 100,
       medianPct: (UT_MEDIAN.mcat / 528) * 100,
       displayMedian: UT_MEDIAN.mcat.toString(),
-      delta: USER.mcat - UT_MEDIAN.mcat,
+      delta: user.mcat - UT_MEDIAN.mcat,
     },
     {
       label: "Clinical Hours",
-      displayValue: USER.clinicalHours.toLocaleString(),
-      userPct: (USER.clinicalHours / 2000) * 100,
+      displayValue: user.clinicalHours.toLocaleString(),
+      userPct: (user.clinicalHours / 2000) * 100,
       medianPct: (UT_MEDIAN.clinicalHours / 2000) * 100,
       displayMedian: UT_MEDIAN.clinicalHours.toLocaleString() + " hrs",
-      delta: USER.clinicalHours - UT_MEDIAN.clinicalHours,
+      delta: user.clinicalHours - UT_MEDIAN.clinicalHours,
     },
     {
       label: "Research Hours",
-      displayValue: USER.researchHours.toLocaleString(),
-      userPct: (USER.researchHours / 1000) * 100,
+      displayValue: user.researchHours.toLocaleString(),
+      userPct: (user.researchHours / 1000) * 100,
       medianPct: (UT_MEDIAN.researchHours / 1000) * 100,
       displayMedian: UT_MEDIAN.researchHours.toLocaleString() + " hrs",
-      delta: USER.researchHours - UT_MEDIAN.researchHours,
+      delta: user.researchHours - UT_MEDIAN.researchHours,
     },
   ];
 
@@ -307,7 +318,7 @@ export default function DashboardPage() {
       <div className="flex items-baseline justify-between">
         <div>
           <h1 className="text-xl font-bold text-white tracking-tight">
-            Welcome back, {USER.name}
+            Welcome back, {user.name}
           </h1>
           <p className="text-sm text-white/35 mt-0.5">
             Here&apos;s where you stand heading into the 2025–26 cycle.
@@ -362,11 +373,11 @@ export default function DashboardPage() {
 
           <div className="mt-3 pt-4 border-t border-white/10 grid grid-cols-2 gap-2 text-center">
             <div>
-              <p className="font-mono text-base font-semibold text-white">{USER.gpa.toFixed(2)}</p>
+              <p className="font-mono text-base font-semibold text-white">{user.gpa.toFixed(2)}</p>
               <p className="text-[11px] text-white/30 mt-0.5">Your GPA</p>
             </div>
             <div>
-              <p className="font-mono text-base font-semibold text-white">{USER.mcat}</p>
+              <p className="font-mono text-base font-semibold text-white">{user.mcat}</p>
               <p className="text-[11px] text-white/30 mt-0.5">Your MCAT</p>
             </div>
           </div>

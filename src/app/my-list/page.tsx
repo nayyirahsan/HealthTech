@@ -105,15 +105,7 @@ const CATALOG = [
 
 // ── Default list ──────────────────────────────────────────────────────────────
 
-const DEFAULT_LIST: ListSchool[] = [
-  { id: "d1", name: "Baylor College of Medicine",  abbr: "BCM",  state: "TX", type: "MD", probability: 22, tier: "Reach",  notes: "" },
-  { id: "d2", name: "Mayo Clinic Alix SOM",         abbr: "MAYO", state: "MN", type: "MD", probability: 6,  tier: "Reach",  notes: "" },
-  { id: "d3", name: "UT Southwestern",              abbr: "UTSW", state: "TX", type: "MD", probability: 28, tier: "Target", notes: "" },
-  { id: "d4", name: "Texas A&M COM",                abbr: "TAMU", state: "TX", type: "MD", probability: 38, tier: "Target", notes: "" },
-  { id: "d5", name: "UT Health Houston McGovern",   abbr: "UTH",  state: "TX", type: "MD", probability: 35, tier: "Target", notes: "" },
-  { id: "d6", name: "Texas COM (TCOM)",             abbr: "TCOM", state: "TX", type: "DO", probability: 55, tier: "Safety", notes: "" },
-  { id: "d7", name: "LECOM Bradenton COM",          abbr: "LECOM",state: "FL", type: "DO", probability: 67, tier: "Safety", notes: "" },
-];
+const DEFAULT_LIST: ListSchool[] = [];
 
 // ── Tier config ───────────────────────────────────────────────────────────────
 
