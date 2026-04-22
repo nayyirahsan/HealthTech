@@ -85,14 +85,31 @@ interface SchoolApplicationRow {
 
 const TODAY = new Date();
 
-const CATEGORY_MEDIANS: Record<ActivityRow["category"], number> = {
-  Clinical: 1200,
-  Research: 600,
-  Volunteering: 250,
-  Shadowing: 120,
-  Leadership: 75,
-  Other: 100,
+/** Maps `ut_benchmarks.metric` → activity category (only metrics stored in DB). */
+const BENCHMARK_METRIC_TO_CATEGORY: Record<string, ActivityRow["category"]> = {
+  clinical_hours: "Clinical",
+  research_hours: "Research",
+  volunteer_hours: "Volunteering",
+  shadowing_hours: "Shadowing",
 };
+
+function mediansFromBenchmarkRows(
+  rows: { metric: string; median_value: number | string }[] | null
+): Partial<Record<ActivityRow["category"], number>> {
+  const out: Partial<Record<ActivityRow["category"], number>> = {};
+  for (const r of rows ?? []) {
+    const cat = BENCHMARK_METRIC_TO_CATEGORY[r.metric];
+    if (cat) out[cat] = Number(r.median_value);
+  }
+  return out;
+}
+
+/** Soft target date for “close the hours gap” tasks — not a fixed demo calendar day. */
+function hoursGapTargetDueDate(): string {
+  const d = new Date(TODAY);
+  d.setDate(d.getDate() + 90);
+  return d.toISOString().slice(0, 10);
+}
 
 
 const SCHOOL_STAGES = [
@@ -123,9 +140,10 @@ function uid(): string {
   return Math.random().toString(36).slice(2, 9);
 }
 
-function buildActivityTasks(rows: ActivityRow[]): PersonalTask[] {
-  if (rows.length === 0) return [];
-
+function buildActivityTasks(
+  rows: ActivityRow[],
+  categoryMedians: Partial<Record<ActivityRow["category"], number>>
+): PersonalTask[] {
   const completionTasks: PersonalTask[] = rows
     .filter((r) => r.end_date)
     .sort((a, b) => (a.end_date ?? "").localeCompare(b.end_date ?? ""))
@@ -137,24 +155,27 @@ function buildActivityTasks(rows: ActivityRow[]): PersonalTask[] {
       completed: daysUntil(r.end_date ?? TODAY.toISOString().slice(0, 10)) < 0,
     }));
 
+  if (rows.length === 0) return completionTasks;
+
   const totals = rows.reduce((acc, row) => {
     acc[row.category] = (acc[row.category] ?? 0) + row.hours;
     return acc;
   }, {} as Record<ActivityRow["category"], number>);
 
-  const benchmarkTasks: PersonalTask[] = Object.entries(CATEGORY_MEDIANS)
+  const gapDue = hoursGapTargetDueDate();
+  const benchmarkTasks: PersonalTask[] = (Object.entries(categoryMedians) as [ActivityRow["category"], number][])
     .map(([category, median]) => {
-      const current = totals[category as ActivityRow["category"]] ?? 0;
+      const current = totals[category] ?? 0;
       if (current >= median) return null;
       return {
         id: `gap-${category}`,
-        label: `Add ${(median - current).toLocaleString()} ${category.toLowerCase()} hours to reach UT median`,
-        dueDate: "2026-05-15",
+        label: `Add ${(median - current).toLocaleString()} ${category.toLowerCase()} hours toward UT HPO median (${median.toLocaleString()} hrs)`,
+        dueDate: gapDue,
         completed: false,
       };
     })
     .filter((task): task is PersonalTask => Boolean(task))
-    .slice(0, 3);
+    .slice(0, 4);
 
   return [...completionTasks, ...benchmarkTasks];
 }
@@ -268,8 +289,11 @@ export default function TimelinePage() {
   const [taskDate, setTaskDate]     = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [loadingTasks, setLoadingTasks] = useState(true);
+  const [tasksLoadError, setTasksLoadError] = useState<string | null>(null);
   const [loadingTimeline, setLoadingTimeline] = useState(true);
+  const [timelineLoadError, setTimelineLoadError] = useState<string | null>(null);
   const [loadingSchools, setLoadingSchools] = useState(true);
+  const [schoolsLoadError, setSchoolsLoadError] = useState<string | null>(null);
 
   const [draft, setDraft] = useState({
     name: "", abbr: "", system: "TMDSAS" as "AMCAS" | "TMDSAS",
@@ -278,16 +302,27 @@ export default function TimelinePage() {
   });
 
   useEffect(() => {
+    let cancelled = false;
     const supabase = createClient();
-    supabase
-      .from("activities")
-      .select("id, name, category, hours, end_date")
-      .then(({ data, error }) => {
-        if (!error && data) {
-          setTasks(buildActivityTasks(data as ActivityRow[]));
-        }
-        setLoadingTasks(false);
+    (async () => {
+      const [{ data: actData, error: actErr }, { data: benchData, error: benchErr }] = await Promise.all([
+        supabase.from("activities").select("id, name, category, hours, end_date"),
+        supabase.from("ut_benchmarks").select("metric, median_value"),
+      ]);
+      if (cancelled) return;
+      const errMsg = actErr?.message ?? benchErr?.message ?? null;
+      setTasksLoadError(actErr || benchErr ? errMsg : null);
+      const medians = mediansFromBenchmarkRows(benchData ?? []);
+      const derived = buildActivityTasks((actData ?? []) as ActivityRow[], medians);
+      setTasks((prev) => {
+        const manual = prev.filter((t) => t.id.startsWith("m-"));
+        return [...derived, ...manual];
       });
+      setLoadingTasks(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -297,8 +332,12 @@ export default function TimelinePage() {
       .select("id, key, label, date, system, type, description, completed")
       .order("date", { ascending: true })
       .then(({ data, error }) => {
-        if (!error && data) {
-          setMasterDeadlines(data.map((row) => mapDeadlineRow(row as DeadlineRow)));
+        if (error) {
+          setTimelineLoadError(error.message);
+          setMasterDeadlines([]);
+        } else {
+          setTimelineLoadError(null);
+          setMasterDeadlines((data ?? []).map((row) => mapDeadlineRow(row as DeadlineRow)));
         }
         setLoadingTimeline(false);
       });
@@ -311,8 +350,12 @@ export default function TimelinePage() {
       .select("id, school_name, school_abbr, system, applied, secondary_received, secondary_submitted, interview_invite, interview_date, decision")
       .order("school_name", { ascending: true })
       .then(({ data, error }) => {
-        if (!error && data) {
-          setSchools(data.map((row) => mapSchoolRow(row as SchoolApplicationRow)));
+        if (error) {
+          setSchoolsLoadError(error.message);
+          setSchools([]);
+        } else {
+          setSchoolsLoadError(null);
+          setSchools((data ?? []).map((row) => mapSchoolRow(row as SchoolApplicationRow)));
         }
         setLoadingSchools(false);
       });
@@ -347,7 +390,7 @@ export default function TimelinePage() {
   function addTask() {
     if (!taskLabel.trim()) return;
     setTasks(ts => [...ts, {
-      id: uid(), label: taskLabel.trim(),
+      id: `m-${uid()}`, label: taskLabel.trim(),
       dueDate: taskDate || TODAY.toISOString().slice(0, 10),
       completed: false,
     }]);
@@ -407,7 +450,13 @@ export default function TimelinePage() {
               2025–26
             </span>
           </div>
-          <p className="text-sm text-white/35">AMCAS · TMDSAS · personal milestones in one view</p>
+          <p className="text-sm text-white/35">
+            {[tasksLoadError, timelineLoadError, schoolsLoadError].filter(Boolean).length > 0
+              ? [tasksLoadError, timelineLoadError, schoolsLoadError]
+                  .filter(Boolean)
+                  .join(" · ")
+              : "AMCAS · TMDSAS · personal milestones in one view"}
+          </p>
         </div>
 
         {/* Filter bar */}

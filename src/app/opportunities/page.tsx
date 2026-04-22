@@ -273,6 +273,7 @@ function FilterChip({
 export default function OpportunitiesPage() {
   const [opportunities,      setOpportunities]      = useState<Opportunity[]>(OPPORTUNITIES);
   const [loading,            setLoading]            = useState(true);
+  const [loadError,          setLoadError]          = useState<string | null>(null);
   const [selectedOpp,       setSelectedOpp]       = useState<Opportunity | null>(null);
   const [activeCategories,  setActiveCategories]  = useState<Set<Category>>(new Set());
   const [activeTime,        setActiveTime]        = useState("Any");
@@ -287,26 +288,30 @@ export default function OpportunitiesPage() {
       .order("recommended", { ascending: false })
       .order("name", { ascending: true })
       .then(({ data, error }) => {
-        if (!error && data) {
-          const mapped = data.map((row) => ({
-            id: row.id,
-            name: row.name,
-            org: row.org,
-            category: row.category as Category,
-            mode: row.mode as Mode,
-            affiliation: row.affiliation as Affiliation,
-            location: row.location,
-            weeklyHours: row.weekly_hours,
-            metric: row.metric as Metric,
-            competitive: row.competitive,
-            description: row.description,
-            requirements: row.requirements ?? [],
-            applyUrl: row.apply_url,
-            recommended: row.recommended ?? false,
-            recommendReason: row.recommend_reason ?? undefined,
-          }));
-          setOpportunities(mapped);
+        if (error) {
+          setLoadError(error.message);
+          setOpportunities([]);
+          setLoading(false);
+          return;
         }
+        const mapped = (data ?? []).map((row) => ({
+          id: row.id,
+          name: row.name,
+          org: row.org,
+          category: row.category as Category,
+          mode: row.mode as Mode,
+          affiliation: row.affiliation as Affiliation,
+          location: row.location,
+          weeklyHours: row.weekly_hours,
+          metric: row.metric as Metric,
+          competitive: row.competitive,
+          description: row.description,
+          requirements: row.requirements ?? [],
+          applyUrl: row.apply_url,
+          recommended: row.recommended ?? false,
+          recommendReason: row.recommend_reason ?? undefined,
+        }));
+        setOpportunities(mapped);
         setLoading(false);
       });
   }, []);
@@ -330,10 +335,25 @@ export default function OpportunitiesPage() {
       }
       return true;
     });
-  }, [activeCategories, activeModes, activeAffils, activeTime]);
+  }, [opportunities, activeCategories, activeModes, activeAffils, activeTime]);
 
-  const recommended = opportunities.filter((o) => o.recommended);
-  const rest        = filtered.filter((o) => !o.recommended);
+  // Recommended strip: only items that pass current filters
+  const recommendedList = useMemo(
+    () => filtered.filter((o) => o.recommended),
+    [filtered]
+  );
+
+  // "All" grid: non-recommended rows. If every row is flagged recommended (or none left),
+  // show the full filtered list so the page is not empty on first load.
+  const allGridList = useMemo(() => {
+    const nonRec = filtered.filter((o) => !o.recommended);
+    if (nonRec.length > 0) return nonRec;
+    return filtered;
+  }, [filtered]);
+
+  const showRecommendedStrip =
+    recommendedList.length > 0 &&
+    filtered.some((o) => !o.recommended);
 
   return (
     <div className="min-h-full bg-[#0F172A] p-6 space-y-6">
@@ -342,29 +362,35 @@ export default function OpportunitiesPage() {
       <div>
         <h1 className="text-xl font-bold text-white tracking-tight">Opportunities</h1>
         <p className="text-sm text-white/35 mt-0.5">
-          {loading ? "Loading opportunities..." : "Austin-area and remote experiences to strengthen your application profile."}
+          {loading
+            ? "Loading opportunities..."
+            : loadError
+              ? `Unable to load opportunities: ${loadError}`
+              : "Austin-area and remote experiences to strengthen your application profile."}
         </p>
       </div>
 
-      {/* Recommended */}
-      <section>
-        <div className="flex items-center gap-2 mb-3">
-          <Sparkles size={13} className="text-[#BF5700]" />
-          <h2 className="text-xs font-semibold tracking-[0.12em] uppercase text-[#BF5700]">
-            Recommended for You
-          </h2>
-        </div>
-        <div className="grid grid-cols-3 gap-4">
-          {recommended.map((opp) => (
-            <div key={opp.id} className="flex flex-col gap-2">
-              <div className="bg-[#BF5700]/08 border border-[#BF5700]/20 rounded-lg px-3 py-2 text-[11px] text-[#BF5700]/80 leading-snug">
-                {opp.recommendReason}
+      {/* Recommended — hidden when every match is "recommended" (avoids empty All grid) */}
+      {showRecommendedStrip && (
+        <section>
+          <div className="flex items-center gap-2 mb-3">
+            <Sparkles size={13} className="text-[#BF5700]" />
+            <h2 className="text-xs font-semibold tracking-[0.12em] uppercase text-[#BF5700]">
+              Recommended for You
+            </h2>
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            {recommendedList.map((opp) => (
+              <div key={opp.id} className="flex flex-col gap-2">
+                <div className="bg-[#BF5700]/08 border border-[#BF5700]/20 rounded-lg px-3 py-2 text-[11px] text-[#BF5700]/80 leading-snug">
+                  {opp.recommendReason}
+                </div>
+                <OpportunityCard opp={opp} onClick={() => setSelectedOpp(opp)} />
               </div>
-              <OpportunityCard opp={opp} onClick={() => setSelectedOpp(opp)} />
-            </div>
-          ))}
-        </div>
-      </section>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Filter Bar */}
       <section className="flex flex-wrap items-center gap-2 py-4 border-y border-white/[0.07]">
@@ -435,10 +461,10 @@ export default function OpportunitiesPage() {
           <h2 className="text-xs font-semibold tracking-[0.12em] uppercase text-white/35">
             All Opportunities
           </h2>
-          <span className="text-[11px] text-white/25 font-mono">{filtered.length} results</span>
+          <span className="text-[11px] text-white/25 font-mono">{allGridList.length} results</span>
         </div>
 
-        {filtered.length === 0 ? (
+        {allGridList.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <p className="text-white/30 text-sm">No opportunities match your filters.</p>
             <button
@@ -455,7 +481,7 @@ export default function OpportunitiesPage() {
           </div>
         ) : (
           <div className="grid grid-cols-3 gap-4">
-            {rest.map((opp) => (
+            {allGridList.map((opp) => (
               <OpportunityCard key={opp.id} opp={opp} onClick={() => setSelectedOpp(opp)} />
             ))}
           </div>
