@@ -4,27 +4,34 @@ import { z } from "zod";
 import type { AdvisorCitation } from "@/lib/ai/types";
 import { PROFILE_SELECT, resolveUserProfile, type UserProfileRow } from "@/lib/user-profile";
 
-function emptyToUndefined(value: unknown) {
-  if (value === "" || value === null) {
-    return undefined;
-  }
-
-  return value;
-}
-
 function optionalTrimmedString() {
-  return z.preprocess(emptyToUndefined, z.string().optional()).transform((value) => {
-    if (typeof value !== "string") {
+  // Important: avoid Zod `.transform()` here — LangChain tool schemas must be JSON-schema serializable for Groq.
+  return z.preprocess((value) => {
+    if (value === "" || value === null) {
       return undefined;
+    }
+
+    if (typeof value !== "string") {
+      return value;
     }
 
     const trimmed = value.trim();
     return trimmed.length > 0 ? trimmed : undefined;
-  });
+  }, z.string().optional());
 }
 
 function optionalEnum<const T extends readonly [string, ...string[]]>(values: T) {
-  return z.preprocess(emptyToUndefined, z.enum(values).optional());
+  return z.preprocess((value) => {
+    if (value === "" || value === null) {
+      return undefined;
+    }
+
+    if (typeof value === "string") {
+      return value.trim();
+    }
+
+    return value;
+  }, z.enum(values).optional());
 }
 
 interface CreateAdvisorToolsParams {
