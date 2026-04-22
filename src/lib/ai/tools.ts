@@ -4,36 +4,6 @@ import { z } from "zod";
 import type { AdvisorCitation } from "@/lib/ai/types";
 import { PROFILE_SELECT, resolveUserProfile, type UserProfileRow } from "@/lib/user-profile";
 
-function optionalTrimmedString() {
-  // Important: avoid Zod `.transform()` here — LangChain tool schemas must be JSON-schema serializable for Groq.
-  return z.preprocess((value) => {
-    if (value === "" || value === null) {
-      return undefined;
-    }
-
-    if (typeof value !== "string") {
-      return value;
-    }
-
-    const trimmed = value.trim();
-    return trimmed.length > 0 ? trimmed : undefined;
-  }, z.string().optional());
-}
-
-function optionalEnum<const T extends readonly [string, ...string[]]>(values: T) {
-  return z.preprocess((value) => {
-    if (value === "" || value === null) {
-      return undefined;
-    }
-
-    if (typeof value === "string") {
-      return value.trim();
-    }
-
-    return value;
-  }, z.enum(values).optional());
-}
-
 interface CreateAdvisorToolsParams {
   supabase: SupabaseClient;
   user: User;
@@ -211,6 +181,13 @@ export function createAdvisorTools({
       async ({ query, state, system, type, limit }) => {
         const effectiveLimit = typeof limit === "number" ? limit : 8;
 
+        const applicationSystems = new Set(["TMDSAS", "AMCAS", "AACOMAS"]);
+        const schoolTypes = new Set(["MD", "DO"]);
+
+        const systemFilter =
+          typeof system === "string" && applicationSystems.has(system) ? system : undefined;
+        const typeFilter = typeof type === "string" && schoolTypes.has(type) ? type : undefined;
+
         let request = supabase
           .from("schools")
           .select("id, name, type, system, state, median_gpa, median_mcat, acceptance_rate, class_size, tuition_in_state, tuition_oos, mission_keywords")
@@ -223,11 +200,11 @@ export function createAdvisorTools({
         if (state?.trim()) {
           request = request.eq("state", state.trim().toUpperCase());
         }
-        if (system) {
-          request = request.eq("system", system);
+        if (systemFilter) {
+          request = request.eq("system", systemFilter);
         }
-        if (type) {
-          request = request.eq("type", type);
+        if (typeFilter) {
+          request = request.eq("type", typeFilter);
         }
 
         const { data, error } = await request;
@@ -247,10 +224,11 @@ export function createAdvisorTools({
         name: "search_schools",
         description: "Search schools by name and optional state, system, or MD/DO type.",
         schema: z.object({
-          query: optionalTrimmedString().describe("Partial school name."),
-          state: optionalTrimmedString().describe("Two-letter state code like TX."),
-          system: optionalEnum(["TMDSAS", "AMCAS", "AACOMAS"]),
-          type: optionalEnum(["MD", "DO"]),
+          // Keep these as plain Zod primitives — Groq/LangChain JSON-schema export rejects ZodEffects like `.preprocess()`.
+          query: z.string().optional().describe("Partial school name. Blank values are ignored."),
+          state: z.string().optional().describe("Two-letter state code like TX. Blank values are ignored."),
+          system: z.enum(["TMDSAS", "AMCAS", "AACOMAS"]).optional(),
+          type: z.enum(["MD", "DO"]).optional(),
           // Avoid Zod `.default()` here — it introduces transforms that can't be exported to JSON Schema for Groq tool calling.
           limit: z.number().int().min(1).max(20).optional().describe("Defaults to 8 when omitted."),
         }),
@@ -279,13 +257,19 @@ export function createAdvisorTools({
         description: "Fetch a single school's detailed record by id or approximate name.",
         schema: z.object({
           schoolId: z.number().int().optional(),
-          schoolName: optionalTrimmedString(),
+          schoolName: z.string().optional(),
         }),
       },
     ),
     tool(
       async ({ schoolName, applicationSystem, gpaBand, mcatBand, reportYear, limit }) => {
         const effectiveLimit = typeof limit === "number" ? limit : 20;
+
+        const applicationSystems = new Set(["TMDSAS", "AMCAS", "AACOMAS"]);
+        const applicationSystemFilter =
+          typeof applicationSystem === "string" && applicationSystems.has(applicationSystem)
+            ? applicationSystem
+            : undefined;
 
         let request = supabase
           .from("ut_outcomes")
@@ -296,8 +280,8 @@ export function createAdvisorTools({
         if (schoolName?.trim()) {
           request = request.ilike("school_name", `%${schoolName.trim()}%`);
         }
-        if (applicationSystem) {
-          request = request.eq("application_system", applicationSystem);
+        if (applicationSystemFilter) {
+          request = request.eq("application_system", applicationSystemFilter);
         }
         if (gpaBand?.trim()) {
           request = request.eq("gpa_band", gpaBand.trim());
@@ -326,10 +310,10 @@ export function createAdvisorTools({
         name: "get_ut_outcomes",
         description: "Fetch UT Austin outcome rows by school, application system, GPA band, MCAT band, or report year.",
         schema: z.object({
-          schoolName: optionalTrimmedString(),
-          applicationSystem: optionalEnum(["TMDSAS", "AMCAS", "AACOMAS"]),
-          gpaBand: optionalTrimmedString(),
-          mcatBand: optionalTrimmedString(),
+          schoolName: z.string().optional(),
+          applicationSystem: z.enum(["TMDSAS", "AMCAS", "AACOMAS"]).optional(),
+          gpaBand: z.string().optional(),
+          mcatBand: z.string().optional(),
           reportYear: z.number().int().optional(),
           limit: z.number().int().min(1).max(50).optional().describe("Defaults to 20 when omitted."),
         }),
@@ -339,14 +323,17 @@ export function createAdvisorTools({
       async ({ source, gpaRange, mcatRange, year, limit }) => {
         const effectiveLimit = typeof limit === "number" ? limit : 12;
 
+        const sources = new Set(["AAMC", "AACOM"]);
+        const sourceFilter = typeof source === "string" && sources.has(source) ? source : undefined;
+
         let request = supabase
           .from("acceptance_grid")
           .select("*")
           .order("year", { ascending: false })
           .limit(effectiveLimit);
 
-        if (source) {
-          request = request.eq("source", source);
+        if (sourceFilter) {
+          request = request.eq("source", sourceFilter);
         }
         if (gpaRange?.trim()) {
           request = request.eq("gpa_range", gpaRange.trim());
@@ -375,9 +362,9 @@ export function createAdvisorTools({
         name: "get_acceptance_grid",
         description: "Fetch AAMC or AACOM acceptance-grid rows by GPA range, MCAT range, and year.",
         schema: z.object({
-          source: optionalEnum(["AAMC", "AACOM"]),
-          gpaRange: optionalTrimmedString(),
-          mcatRange: optionalTrimmedString(),
+          source: z.enum(["AAMC", "AACOM"]).optional(),
+          gpaRange: z.string().optional(),
+          mcatRange: z.string().optional(),
           year: z.number().int().optional(),
           limit: z.number().int().min(1).max(30).optional().describe("Defaults to 12 when omitted."),
         }),
@@ -423,7 +410,7 @@ export function createAdvisorTools({
         description: "Fetch interview format, sample questions, and tips for a specific school.",
         schema: z.object({
           schoolId: z.number().int().optional(),
-          schoolName: optionalTrimmedString(),
+          schoolName: z.string().optional(),
         }),
       },
     ),
