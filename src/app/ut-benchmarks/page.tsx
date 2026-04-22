@@ -236,17 +236,42 @@ export default function UTBenchmarksPage() {
 
   useEffect(() => {
     const supabase = createClient();
-    Promise.all([
-      supabase
-        .from("users")
-        .select("gpa, mcat_score, clinical_hours, research_hours, volunteer_hours, shadowing_hours")
-        .limit(1),
-      supabase
-        .from("ut_benchmarks")
-        .select("metric, median_value"),
-    ]).then(([userRes, benchRes]) => {
-      if (!userRes.error && userRes.data && userRes.data.length > 0) {
-        const u = userRes.data[0];
+
+    void (async () => {
+      const {
+        data: { user: authUser },
+      } = await supabase.auth.getUser();
+
+      const benchPromise = supabase.from("ut_benchmarks").select("metric, median_value");
+
+      if (!authUser) {
+        const benchRes = await benchPromise;
+        if (!benchRes.error && benchRes.data && benchRes.data.length > 0) {
+          const lookup = Object.fromEntries(benchRes.data.map((r) => [r.metric, Number(r.median_value)]));
+          setUtMedian({
+            gpa: lookup.gpa ?? UT_DEFAULT.gpa,
+            mcat: lookup.mcat ?? UT_DEFAULT.mcat,
+            clinicalHours: lookup.clinical_hours ?? UT_DEFAULT.clinicalHours,
+            researchHours: lookup.research_hours ?? UT_DEFAULT.researchHours,
+            volunteerHours: lookup.volunteer_hours ?? UT_DEFAULT.volunteerHours,
+            shadowingHours: lookup.shadowing_hours ?? UT_DEFAULT.shadowingHours,
+          });
+        }
+        setLoading(false);
+        return;
+      }
+
+      const [userRes, benchRes] = await Promise.all([
+        supabase
+          .from("users")
+          .select("gpa, mcat_score, clinical_hours, research_hours, volunteer_hours, shadowing_hours")
+          .eq("id", authUser.id)
+          .maybeSingle(),
+        benchPromise,
+      ]);
+
+      if (!userRes.error && userRes.data) {
+        const u = userRes.data;
         setUser({
           gpa: u.gpa ?? 0,
           mcat: u.mcat_score ?? 0,
@@ -256,6 +281,7 @@ export default function UTBenchmarksPage() {
           shadowingHours: u.shadowing_hours ?? 0,
         });
       }
+
       if (!benchRes.error && benchRes.data && benchRes.data.length > 0) {
         const lookup = Object.fromEntries(benchRes.data.map((r) => [r.metric, Number(r.median_value)]));
         setUtMedian({
@@ -267,8 +293,9 @@ export default function UTBenchmarksPage() {
           shadowingHours: lookup.shadowing_hours ?? UT_DEFAULT.shadowingHours,
         });
       }
+
       setLoading(false);
-    });
+    })();
   }, []);
 
   const RADAR_DATA = [

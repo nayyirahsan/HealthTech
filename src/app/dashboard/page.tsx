@@ -187,61 +187,69 @@ export default function DashboardPage() {
   useEffect(() => {
     const supabase = createClient();
 
-    supabase
-      .from("users")
-      .select("full_name, gpa, mcat_score, clinical_hours, research_hours")
-      .limit(1)
-      .then(({ data, error }) => {
-        if (!error && data && data.length > 0) {
-          const row = data[0];
-          setUser({
-            name: row.full_name ?? USER_DEFAULT.name,
-            gpa: row.gpa ?? 0,
-            mcat: row.mcat_score ?? 0,
-            clinicalHours: row.clinical_hours ?? 0,
-            researchHours: row.research_hours ?? 0,
-          });
-        }
-      });
+    void (async () => {
+      const {
+        data: { user: authUser },
+      } = await supabase.auth.getUser();
 
-    // Fetch TX MD schools with real medians
-    supabase
-      .from("schools")
-      .select("id, name, median_gpa, median_mcat, acceptance_rate")
-      .eq("state", "TX")
-      .eq("type", "MD")
-      .not("median_gpa",      "is", null)
-      .not("median_mcat",     "is", null)
-      .not("acceptance_rate", "is", null)
-      .order("acceptance_rate", { ascending: true })
-      .limit(5)
-      .then(({ data, error }) => {
-        if (!error && data && data.length > 0) {
-          const enriched = data
-            .map(mapRow)
-            .map((s) => ({
-              ...s,
-              pct:  calcProbability(user.gpa, user.mcat, s),
-              tier: tierFromProb(calcProbability(user.gpa, user.mcat, s)),
-            }))
-            .sort((a, b) => b.pct - a.pct);
-          setSchools(enriched);
-        }
-      });
+      if (!authUser) {
+        return;
+      }
 
-    // Look up overall acceptance probability for user's GPA × MCAT bucket
-    supabase
-      .from("acceptance_grid")
-      .select("acceptance_rate")
-      .eq("gpa_range",  gpaRangeBucket(user.gpa))
-      .eq("mcat_range", mcatRangeBucket(user.mcat))
-      .limit(1)
-      .then(({ data, error }) => {
-        if (!error && data && data.length > 0) {
-          setAcceptancePct(Math.round(data[0].acceptance_rate));
-        }
-      });
-  }, [user.gpa, user.mcat]);
+      const { data: row, error } = await supabase
+        .from("users")
+        .select("full_name, gpa, mcat_score, clinical_hours, research_hours")
+        .eq("id", authUser.id)
+        .maybeSingle();
+
+      if (!error && row) {
+        setUser({
+          name: row.full_name ?? USER_DEFAULT.name,
+          gpa: row.gpa ?? 0,
+          mcat: row.mcat_score ?? 0,
+          clinicalHours: row.clinical_hours ?? 0,
+          researchHours: row.research_hours ?? 0,
+        });
+      }
+
+      const gpa = row?.gpa ?? 0;
+      const mcat = row?.mcat_score ?? 0;
+
+      const { data: schoolRows, error: schoolError } = await supabase
+        .from("schools")
+        .select("id, name, median_gpa, median_mcat, acceptance_rate")
+        .eq("state", "TX")
+        .eq("type", "MD")
+        .not("median_gpa", "is", null)
+        .not("median_mcat", "is", null)
+        .not("acceptance_rate", "is", null)
+        .order("acceptance_rate", { ascending: true })
+        .limit(5);
+
+      if (!schoolError && schoolRows && schoolRows.length > 0) {
+        const enriched = schoolRows
+          .map(mapRow)
+          .map((s) => {
+            const pct = calcProbability(gpa, mcat, s);
+            return { ...s, pct, tier: tierFromProb(pct) };
+          })
+          .sort((a, b) => b.pct - a.pct);
+        setSchools(enriched);
+      }
+
+      const { data: gridRow, error: gridError } = await supabase
+        .from("acceptance_grid")
+        .select("acceptance_rate")
+        .eq("gpa_range", gpaRangeBucket(gpa))
+        .eq("mcat_range", mcatRangeBucket(mcat))
+        .limit(1)
+        .maybeSingle();
+
+      if (!gridError && gridRow) {
+        setAcceptancePct(Math.round(Number(gridRow.acceptance_rate)));
+      }
+    })();
+  }, []);
 
   const donutData = [
     { value: acceptancePct },

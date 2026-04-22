@@ -20,6 +20,8 @@ import {
   Eye,
   Award,
 } from "lucide-react"
+import { useAuth } from "@/app/providers"
+import type { UserProfileRow, UserProfileUpdate } from "@/lib/user-profile"
 
 // ─── Fonts ──────────────────────────────────────────────────────────────────
 
@@ -106,6 +108,38 @@ const MCAT_SECTIONS = [
 ]
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function mapUserRowToProfile(row: UserProfileRow): Profile {
+  const breakdown = row.mcat_breakdown;
+
+  return {
+    avatar: row.avatar_url,
+    name: row.full_name ?? "",
+    eid: row.eid ?? "",
+    gradYear: row.graduation_year != null ? String(row.graduation_year) : "",
+    appCycle: row.app_cycle ?? "",
+    gpa: {
+      overall: row.gpa ?? 0,
+      science: row.science_gpa ?? 0,
+    },
+    mcat: {
+      total: row.mcat_score ?? 0,
+      cp: breakdown?.chem_phys ?? 0,
+      cars: breakdown?.cars ?? 0,
+      bb: breakdown?.bio ?? 0,
+      ps: breakdown?.psych ?? 0,
+    },
+    hours: {
+      clinical: row.clinical_hours ?? 0,
+      research: row.research_hours ?? 0,
+      volunteering: row.volunteer_hours ?? 0,
+      shadowing: row.shadowing_hours ?? 0,
+      leadership: row.leadership_hours ?? 0,
+    },
+    personalStatement: row.personal_statement ?? "",
+    appStatus: row.app_status ?? "pre-app",
+  };
+}
 
 const wc = (t: string) => (t.trim() === "" ? 0 : t.trim().split(/\s+/).length)
 
@@ -198,6 +232,7 @@ function SectionHead({ children }: { children: ReactNode }) {
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function ProfilePage() {
+  const { profile: authProfile, loading: authLoading, updateProfile } = useAuth()
   const [profile, setProfile] = useState<Profile>(EMPTY_PROFILE)
   const [editField, setEditField] = useState<string | null>(null)
   const [drafts, setDrafts] = useState<Record<string, string>>({})
@@ -206,10 +241,74 @@ export default function ProfilePage() {
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle")
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const personalStatementTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const { score, missing } = computeCompleteness(profile)
   const words = wc(profile.personalStatement)
+
+  useEffect(() => {
+    if (!authProfile) {
+      return;
+    }
+
+    setProfile(mapUserRowToProfile(authProfile));
+  }, [authProfile]);
+
+  const persistGpaField = useCallback(
+    async (field: "overall" | "science", value: number) => {
+      try {
+        if (field === "overall") {
+          await updateProfile({ gpa: value });
+          return;
+        }
+
+        await updateProfile({ science_gpa: value });
+      } catch (error) {
+        console.error("Failed to persist GPA update", error);
+      }
+    },
+    [updateProfile],
+  );
+
+  const persistHoursField = useCallback(
+    async (key: keyof Profile["hours"], value: number) => {
+      try {
+        const updates: UserProfileUpdate = {};
+        if (key === "clinical") updates.clinical_hours = value;
+        if (key === "research") updates.research_hours = value;
+        if (key === "volunteering") updates.volunteer_hours = value;
+        if (key === "shadowing") updates.shadowing_hours = value;
+        if (key === "leadership") updates.leadership_hours = value;
+
+        if (Object.keys(updates).length > 0) {
+          await updateProfile(updates);
+        }
+      } catch (error) {
+        console.error("Failed to persist hours update", error);
+      }
+    },
+    [updateProfile],
+  );
+
+  const queuePersonalStatementSave = useCallback(
+    (text: string) => {
+      if (personalStatementTimerRef.current) {
+        clearTimeout(personalStatementTimerRef.current);
+      }
+
+      personalStatementTimerRef.current = setTimeout(() => {
+        void (async () => {
+          try {
+            await updateProfile({ personal_statement: text });
+          } catch (error) {
+            console.error("Failed to persist personal statement", error);
+          }
+        })();
+      }, 650);
+    },
+    [updateProfile],
+  );
 
   const triggerSave = useCallback(() => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
@@ -225,6 +324,7 @@ export default function ProfilePage() {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
       if (resetTimerRef.current) clearTimeout(resetTimerRef.current)
+      if (personalStatementTimerRef.current) clearTimeout(personalStatementTimerRef.current)
     }
   }, [])
 
@@ -234,8 +334,27 @@ export default function ProfilePage() {
   }
 
   const commitEdit = (field: keyof Profile) => {
-    setProfile((p) => ({ ...p, [field]: drafts[field] ?? "" }))
+    const nextValue = drafts[field] ?? ""
+
+    setProfile((p) => ({ ...p, [field]: nextValue }))
     setEditField(null)
+
+    void (async () => {
+      try {
+        const updates: UserProfileUpdate = {};
+
+        if (field === "name") updates.full_name = nextValue;
+        if (field === "eid") updates.eid = nextValue;
+        if (field === "gradYear") updates.graduation_year = Number(nextValue) || 0;
+        if (field === "appCycle") updates.app_cycle = nextValue;
+
+        if (Object.keys(updates).length > 0) {
+          await updateProfile(updates);
+        }
+      } catch (error) {
+        console.error("Failed to persist profile field", error);
+      }
+    })();
   }
 
   const cancelEdit = () => setEditField(null)
@@ -248,6 +367,22 @@ export default function ProfilePage() {
     updated.total = updated.cp + updated.cars + updated.bb + updated.ps
     setProfile((p) => ({ ...p, mcat: updated }))
     setMcatEdit(null)
+
+    void (async () => {
+      try {
+        await updateProfile({
+          mcat_score: updated.total,
+          mcat_breakdown: {
+            chem_phys: updated.cp,
+            cars: updated.cars,
+            bio: updated.bb,
+            psych: updated.ps,
+          },
+        });
+      } catch (error) {
+        console.error("Failed to persist MCAT breakdown", error);
+      }
+    })();
   }
 
   const handleAvatar = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -257,6 +392,19 @@ export default function ProfilePage() {
   }
 
   const statusIdx = STATUS_STEPS.findIndex((s) => s.key === profile.appStatus)
+
+  if (authLoading && !authProfile) {
+    return (
+      <div className={`${crimson.variable} ${spaceMono.variable}`}>
+        <div className="min-h-screen bg-[#0F172A] flex items-center justify-center text-white/60">
+          <div className="flex items-center gap-2">
+            <Loader2 size={16} className="animate-spin" />
+            Loading profile…
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`${crimson.variable} ${spaceMono.variable}`}>
@@ -461,7 +609,16 @@ export default function ProfilePage() {
                 return (
                   <div key={step.key} className="flex items-center flex-1">
                     <button
-                      onClick={() => setProfile((p) => ({ ...p, appStatus: step.key }))}
+                      onClick={() => {
+                        setProfile((p) => ({ ...p, appStatus: step.key }));
+                        void (async () => {
+                          try {
+                            await updateProfile({ app_status: step.key });
+                          } catch (error) {
+                            console.error("Failed to persist application status", error);
+                          }
+                        })();
+                      }}
                       className="flex flex-col items-center gap-2 flex-shrink-0 group"
                     >
                       <div
@@ -545,14 +702,16 @@ export default function ProfilePage() {
                                 }
                                 onKeyDown={(e) => {
                                   if (e.key === "Enter") {
+                                    const next = parseFloat(drafts[key]) || 0;
                                     setProfile((p) => ({
                                       ...p,
                                       gpa: {
                                         ...p.gpa,
-                                        [field]: parseFloat(drafts[key]) || 0,
+                                        [field]: next,
                                       },
                                     }))
                                     setEditField(null)
+                                    void persistGpaField(field, next);
                                   }
                                   if (e.key === "Escape") cancelEdit()
                                 }}
@@ -565,14 +724,16 @@ export default function ProfilePage() {
                               />
                               <button
                                 onClick={() => {
+                                  const next = parseFloat(drafts[key]) || 0;
                                   setProfile((p) => ({
                                     ...p,
                                     gpa: {
                                       ...p.gpa,
-                                      [field]: parseFloat(drafts[key]) || 0,
+                                      [field]: next,
                                     },
                                   }))
                                   setEditField(null)
+                                  void persistGpaField(field, next);
                                 }}
                                 className="p-1.5 rounded-lg text-orange-400 transition-colors"
                                 style={{ background: "rgba(191,87,0,0.15)" }}
@@ -765,8 +926,10 @@ export default function ProfilePage() {
                   rows={14}
                   value={profile.personalStatement}
                   onChange={(e) => {
-                    setProfile((p) => ({ ...p, personalStatement: e.target.value }))
-                    triggerSave()
+                    const next = e.target.value;
+                    setProfile((p) => ({ ...p, personalStatement: next }));
+                    queuePersonalStatementSave(next);
+                    triggerSave();
                   }}
                   placeholder="Begin writing your personal statement…"
                   className="w-full bg-transparent text-white/75 leading-[1.78] resize-none focus:outline-none placeholder:text-white/15"
@@ -817,6 +980,7 @@ export default function ProfilePage() {
                                   ...p,
                                   hours: { ...p.hours, [key]: n },
                                 }))
+                                void persistHoursField(key, n);
                               }}
                               className="w-14 text-right text-sm font-bold bg-transparent text-white focus:outline-none border-b border-transparent hover:border-white/20 focus:border-orange-500 transition-colors"
                               style={{ fontFamily: "var(--font-space-mono), monospace" }}
