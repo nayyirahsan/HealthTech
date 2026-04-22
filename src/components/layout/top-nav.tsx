@@ -1,17 +1,26 @@
 "use client";
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { useState, useRef, useEffect } from "react";
 import { User, Settings, LogOut, ChevronDown, Sun, Moon } from "lucide-react";
-import { useTheme } from "@/app/providers";
-
-// Mock user — replace with Supabase session data when auth is wired up
-const MOCK_USER = { name: "Alex Johnson", initials: "AJ", email: "alexj@utexas.edu" };
+import { useAuth, useTheme } from "@/app/providers";
+import { resolveUserProfile } from "@/lib/user-profile";
 
 export function TopNav() {
   const [open,    setOpen]    = useState(false);
   const dropRef               = useRef<HTMLDivElement>(null);
   const { theme, toggle }     = useTheme();
+  const { profile, user, signOut } = useAuth();
+  const resolved = resolveUserProfile(profile);
+  const displayName = profile?.full_name || user?.user_metadata?.full_name || user?.email || resolved.fullName || "Account";
+  const displayEmail = user?.email || resolved.email;
+  const initials = displayName
+    .split(" ")
+    .filter((part: string) => Boolean(part))
+    .slice(0, 2)
+    .map((part: string) => part[0]?.toUpperCase() ?? "")
+    .join("") || "U";
 
   // Close on outside click
   useEffect(() => {
@@ -64,11 +73,11 @@ export function TopNav() {
           className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg hover:bg-white/[0.06] transition-colors group"
         >
           <div className="w-7 h-7 rounded-full bg-[#BF5700]/25 border border-[#BF5700]/40 flex items-center justify-center text-[11px] font-bold text-[#BF5700] shrink-0">
-            {MOCK_USER.initials}
+            {initials}
           </div>
           <div className="hidden md:block text-left">
-            <p className="text-xs font-medium text-white/80 leading-none">{MOCK_USER.name}</p>
-            <p className="text-[10px] text-white/30 mt-0.5 leading-none font-mono">{MOCK_USER.email}</p>
+            <p className="text-xs font-medium text-white/80 leading-none">{displayName}</p>
+            <p className="text-[10px] text-white/30 mt-0.5 leading-none font-mono">{displayEmail}</p>
           </div>
           <ChevronDown
             size={12}
@@ -81,17 +90,20 @@ export function TopNav() {
           <div className="absolute right-0 top-full mt-1.5 w-48 bg-[#0D1628] border border-white/15 rounded-xl shadow-2xl py-1.5 z-50">
             {/* User info header */}
             <div className="px-3 py-2 border-b border-white/[0.07] mb-1">
-              <p className="text-xs font-semibold text-white/80">{MOCK_USER.name}</p>
-              <p className="text-[10px] text-white/30 font-mono mt-0.5">{MOCK_USER.email}</p>
+              <p className="text-xs font-semibold text-white/80">{displayName}</p>
+              <p className="text-[10px] text-white/30 font-mono mt-0.5">{displayEmail}</p>
             </div>
 
-            <DropdownItem href="/settings" icon={<User size={13} />}     label="Profile"   onClick={() => setOpen(false)} />
+            <DropdownItem href="/profile" icon={<User size={13} />}     label="Profile"   onClick={() => setOpen(false)} />
             <DropdownItem href="/settings" icon={<Settings size={13} />} label="Settings"  onClick={() => setOpen(false)} />
 
             <div className="my-1 border-t border-white/[0.07]" />
 
             <button
-              onClick={() => setOpen(false)}
+              onClick={async () => {
+                setOpen(false);
+                await signOut();
+              }}
               className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-red-400/80 hover:text-red-400 hover:bg-red-500/[0.08] transition-colors"
             >
               <LogOut size={13} />
@@ -109,7 +121,7 @@ export function TopNav() {
 function DropdownItem({
   href, icon, label, onClick,
 }: {
-  href: string; icon: React.ReactNode; label: string; onClick: () => void;
+  href: string; icon: ReactNode; label: string; onClick: () => void;
 }) {
   return (
     <Link

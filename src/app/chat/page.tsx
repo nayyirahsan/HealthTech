@@ -23,8 +23,9 @@ interface Message {
 }
 
 interface Source {
-  type:  string;
+  type: string;
   label: string;
+  detail: string;
 }
 
 // ── Suggested prompts ─────────────────────────────────────────────────────────
@@ -39,24 +40,12 @@ const SUGGESTED = [
 // ── Source chip icon map ──────────────────────────────────────────────────────
 
 const SOURCE_ICON: Record<string, React.ReactNode> = {
-  hpo:       <BarChart3    size={11} />,
-  aamc:      <Database     size={11} />,
-  tmdsas:    <BookOpen     size={11} />,
-  amcas:     <BookOpen     size={11} />,
-  aacomas:   <BookOpen     size={11} />,
-  school:    <School       size={11} />,
-  benchmark: <FlaskConical size={11} />,
-  stats:     <BarChart3    size={11} />,
-};
-
-const SOURCE_DETAIL: Record<string, string> = {
-  "UT HPO Reports 2021–2023":  "Official UT Austin Health Professions Office data covering 3 application cycles. Includes GPA/MCAT breakdowns, acceptance rates by school, and matriculation outcomes for TMDSAS, AMCAS, and AACOMAS applicants.",
-  "AAMC Acceptance Grid":      "Official AAMC data showing acceptance rates by GPA × MCAT band across all MD-granting schools in the US. Used to calculate personalized probability estimates.",
-  "TMDSAS Cycle Data":         "Texas Medical and Dental Schools Application Service data. Covers all Texas public medical schools. UT students applying to Texas schools use TMDSAS.",
-  "AMCAS Cycle Data":          "American Medical College Application Service data covering non-Texas and private MD schools.",
-  "AACOMAS / DO Data":         "American Association of Colleges of Osteopathic Medicine Application Service data for DO programs.",
-  "UT HPO EC Benchmarks":      "Median extracurricular hours (clinical, research, volunteer, shadowing) for UT Austin students who were accepted to medical school, per HPO report data.",
-  "Applicant Stats Database":  "Aggregated GPA and MCAT statistics for admitted students across 170+ MD and DO programs.",
+  profile:         <BookOpen     size={11} />,
+  saved_schools:   <BookOpen     size={11} />,
+  schools:         <School       size={11} />,
+  ut_outcomes:     <BarChart3    size={11} />,
+  acceptance_grid: <Database     size={11} />,
+  interview_data:  <FlaskConical size={11} />,
 };
 
 // ── Simple markdown renderer (bold + bullets + headings) ──────────────────────
@@ -160,9 +149,11 @@ function ContextPanel({ sources }: { sources: Source[] }) {
   const grouped: Record<string, Source[]> = {};
   for (const s of sources) {
     const group =
-      s.type === "school"    ? "Schools" :
-      s.type === "benchmark" ? "Benchmarks" :
-      "Data Sources";
+      s.type === "profile" || s.type === "saved_schools"
+        ? "Your Data"
+        : s.type === "schools" || s.type === "interview_data"
+          ? "Schools"
+          : "Admissions Data";
     if (!grouped[group]) grouped[group] = [];
     grouped[group].push(s);
   }
@@ -181,7 +172,7 @@ function ContextPanel({ sources }: { sources: Source[] }) {
           <div className="flex flex-col items-center justify-center py-12 text-center gap-3">
             <Database size={22} className="text-white/10" />
             <p className="text-xs text-white/20 leading-relaxed max-w-[180px]">
-              Sources appear here as the advisor references HPO reports, AAMC grids, and school profiles.
+              Sources appear here as the advisor queries your profile and the admissions tables behind the app.
             </p>
           </div>
         ) : (
@@ -213,7 +204,7 @@ function ContextPanel({ sources }: { sources: Source[] }) {
                       {isOpen && (
                         <div className="px-3 pb-3 pt-1 border-t border-white/[0.06]">
                           <p className="text-[11px] text-white/35 leading-relaxed">
-                            {SOURCE_DETAIL[s.label] ?? "UT Austin admissions data referenced in this response."}
+                            {s.detail}
                           </p>
                         </div>
                       )}
@@ -228,7 +219,7 @@ function ContextPanel({ sources }: { sources: Source[] }) {
 
       <div className="p-4 border-t border-white/10 shrink-0">
         <p className="text-[10px] text-white/15 leading-relaxed">
-          Data: UT HPO 2021–2023 · AAMC FACTS A-23 · MSAR. Updated annually.
+          Data is pulled live from your saved profile and the Supabase admissions tables used by the app.
         </p>
       </div>
     </div>
@@ -279,7 +270,10 @@ export default function ChatPage() {
       if (data.sources?.length) {
         setSources((prev) => {
           const combined = [...prev, ...data.sources];
-          return combined.filter((s, i, arr) => arr.findIndex((x) => x.label === s.label) === i);
+          return combined.filter(
+            (s, i, arr) =>
+              arr.findIndex((x) => x.label === s.label && x.detail === s.detail) === i,
+          );
         });
       }
     } catch (err: unknown) {
@@ -309,7 +303,7 @@ export default function ChatPage() {
         <div className="px-6 py-4 border-b border-white/10 shrink-0">
           <h1 className="text-base font-bold text-white">AI Premed Advisor</h1>
           <p className="text-xs text-white/30 mt-0.5">
-            Powered by Grok · Grounded in UT HPO data
+            Powered by LangChain on Groq · Grounded in Supabase data
           </p>
         </div>
 
@@ -323,7 +317,7 @@ export default function ChatPage() {
               <div>
                 <p className="text-white font-semibold">Ask your premed advisor</p>
                 <p className="text-sm text-white/30 mt-1 max-w-xs leading-relaxed">
-                  Get data-driven guidance on schools, stats, and strategy — backed by UT HPO data.
+                  Get data-driven guidance on schools, stats, and strategy using your profile and the app&apos;s admissions data.
                 </p>
               </div>
             </div>

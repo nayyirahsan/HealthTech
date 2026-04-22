@@ -2,7 +2,9 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { ChevronLeft, ChevronRight, Users } from "lucide-react";
+import { useAuth } from "@/app/providers";
 import { createClient } from "@/lib/supabase/client";
+import { resolveUserProfile } from "@/lib/user-profile";
 
 type Tier = "Safety" | "Target" | "Reach";
 
@@ -149,11 +151,19 @@ const LEGEND = [
 const CELLS_PER_PAGE = 60;
 
 export default function ChancePage() {
+  const { profile, loading } = useAuth();
+  const currentUser = resolveUserProfile(profile);
   const [schools, setSchools] = useState<School[]>(SCHOOLS_FALLBACK);
   const [gpa, setGpa] = useState(3.75);
   const [mcat, setMcat] = useState(512);
   const [hoveredId, setHoveredId] = useState<number | null>(null);
   const [page, setPage] = useState(0);
+
+  useEffect(() => {
+    if (loading) return;
+    setGpa(currentUser.gpa);
+    setMcat(currentUser.mcat);
+  }, [currentUser.gpa, currentUser.mcat, loading]);
 
   useEffect(() => {
     setPage(0);

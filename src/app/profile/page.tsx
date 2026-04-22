@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react"
 import type { ReactNode } from "react"
+import Image from "next/image"
 import { Crimson_Pro, Space_Mono } from "next/font/google"
 import {
   Camera,
@@ -20,7 +21,9 @@ import {
   Eye,
   Award,
 } from "lucide-react"
-import { userProfile, utMedian } from "@/lib/mock-data"
+import { useAuth } from "@/app/providers"
+import { utMedian } from "@/lib/mock-data"
+import { resolveUserProfile, toProfileUpdate } from "@/lib/user-profile"
 
 // ─── Fonts ──────────────────────────────────────────────────────────────────
 
@@ -62,35 +65,33 @@ interface Profile {
 
 // ─── Mock data ───────────────────────────────────────────────────────────────
 
-const MOCK: Profile = {
-  avatar: null,
-  name: userProfile.fullName,
-  eid: userProfile.eid,
-  gradYear: String(userProfile.graduationYear),
-  appCycle: userProfile.appCycle,
-  gpa: { overall: userProfile.gpa, science: userProfile.scienceGpa },
-  mcat: {
-    total: userProfile.mcat,
-    cp: userProfile.mcatBreakdown.cp,
-    cars: userProfile.mcatBreakdown.cars,
-    bb: userProfile.mcatBreakdown.bb,
-    ps: userProfile.mcatBreakdown.ps,
-  },
-  hours: {
-    clinical: userProfile.clinicalHours,
-    research: userProfile.researchHours,
-    volunteering: userProfile.volunteerHours,
-    shadowing: userProfile.shadowingHours,
-    leadership: userProfile.leadershipHours,
-  },
-  personalStatement: `Medicine called to me not from sterile hospital hallways, but from my grandmother's kitchen in Lagos — where she mixed herbs with prayer and fed neighbors who couldn't reach the clinic across town. That early exposure taught me something no textbook could: that healing is fundamentally an act of presence.
+function buildProfile(): Profile {
+  const resolved = resolveUserProfile(null)
 
-As a first-generation pre-med student at UT Austin, I've spent four years translating that lesson into practice. Three hundred hours in the cardiac care unit at Dell Seton Medical Center taught me to read the room before the chart. The patient in Bed 4 who flinched every time nurses mentioned "the procedure" didn't need more clinical information — she needed someone to slow down and sit with her.
-
-My work in Dr. Patel's neuropharmacology lab sharpened a different kind of attention: the discipline of uncertainty. Science demands you hold contradictory datasets with equal seriousness until evidence resolves the tension. Medicine, I've learned, asks for exactly the same thing.
-
-I am applying to medical school to become a physician-scientist who builds bridges — between bench and bedside, between evidence and empathy, between institution and the communities it too often overlooks. The work is long. I have been preparing for it my entire life.`,
-  appStatus: "interviewing",
+  return {
+    avatar: resolved.avatarUrl,
+    name: resolved.fullName,
+    eid: resolved.eid,
+    gradYear: String(resolved.graduationYear),
+    appCycle: resolved.appCycle,
+    gpa: { overall: resolved.gpa, science: resolved.scienceGpa },
+    mcat: {
+      total: resolved.mcat,
+      cp: resolved.mcatBreakdown.cp,
+      cars: resolved.mcatBreakdown.cars,
+      bb: resolved.mcatBreakdown.bb,
+      ps: resolved.mcatBreakdown.ps,
+    },
+    hours: {
+      clinical: resolved.clinicalHours,
+      research: resolved.researchHours,
+      volunteering: resolved.volunteerHours,
+      shadowing: resolved.shadowingHours,
+      leadership: resolved.leadershipHours,
+    },
+    personalStatement: resolved.personalStatement,
+    appStatus: resolved.appStatus,
+  }
 }
 
 // UT HPO median for admitted applicants (kept consistent with dashboard/ut-benchmarks)
@@ -217,28 +218,65 @@ function SectionHead({ children }: { children: ReactNode }) {
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function ProfilePage() {
-  const [profile, setProfile] = useState<Profile>(MOCK)
+  const { profile: authProfile, loading: authLoading, updateProfile } = useAuth()
+  const [profile, setProfile] = useState<Profile>(buildProfile)
   const [editField, setEditField] = useState<string | null>(null)
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [mcatEdit, setMcatEdit] = useState<keyof Profile["mcat"] | null>(null)
   const [mcatDraft, setMcatDraft] = useState("")
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle")
+  const [saveError, setSaveError] = useState<string | null>(null)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const isHydratingRef = useRef(true)
 
   const { score, missing } = computeCompleteness(profile)
   const words = wc(profile.personalStatement)
 
-  const triggerSave = useCallback(() => {
+  const triggerSave = useCallback((nextProfile: Profile) => {
+    const fallbackProfile = resolveUserProfile(authProfile)
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     if (resetTimerRef.current) clearTimeout(resetTimerRef.current)
     setSaveState("saving")
-    saveTimerRef.current = setTimeout(() => {
-      setSaveState("saved")
-      resetTimerRef.current = setTimeout(() => setSaveState("idle"), 2200)
-    }, 1400)
-  }, [])
+    setSaveError(null)
+    saveTimerRef.current = setTimeout(async () => {
+      try {
+        await updateProfile(
+          toProfileUpdate({
+            fullName: nextProfile.name,
+            eid: nextProfile.eid,
+            major: fallbackProfile.major,
+            residencyState: fallbackProfile.residencyState,
+            graduationYear: Number(nextProfile.gradYear) || fallbackProfile.graduationYear,
+            appCycle: nextProfile.appCycle,
+            gpa: nextProfile.gpa.overall,
+            scienceGpa: nextProfile.gpa.science,
+            mcat: nextProfile.mcat.total,
+            mcatBreakdown: {
+              cp: nextProfile.mcat.cp,
+              cars: nextProfile.mcat.cars,
+              bb: nextProfile.mcat.bb,
+              ps: nextProfile.mcat.ps,
+            },
+            clinicalHours: nextProfile.hours.clinical,
+            researchHours: nextProfile.hours.research,
+            volunteerHours: nextProfile.hours.volunteering,
+            shadowingHours: nextProfile.hours.shadowing,
+            leadershipHours: nextProfile.hours.leadership,
+            personalStatement: nextProfile.personalStatement,
+            appStatus: nextProfile.appStatus,
+            avatarUrl: nextProfile.avatar,
+          }),
+        )
+        setSaveState("saved")
+        resetTimerRef.current = setTimeout(() => setSaveState("idle"), 2200)
+      } catch (error) {
+        setSaveError(error instanceof Error ? error.message : "Unable to save profile.")
+        setSaveState("idle")
+      }
+    }, 700)
+  }, [authProfile, updateProfile])
 
   useEffect(() => {
     return () => {
@@ -247,13 +285,56 @@ export default function ProfilePage() {
     }
   }, [])
 
+  useEffect(() => {
+    if (authLoading) return
+    const resolved = resolveUserProfile(authProfile)
+    isHydratingRef.current = true
+    setProfile({
+      avatar: resolved.avatarUrl,
+      name: resolved.fullName,
+      eid: resolved.eid,
+      gradYear: String(resolved.graduationYear),
+      appCycle: resolved.appCycle,
+      gpa: { overall: resolved.gpa, science: resolved.scienceGpa },
+      mcat: {
+        total: resolved.mcat,
+        cp: resolved.mcatBreakdown.cp,
+        cars: resolved.mcatBreakdown.cars,
+        bb: resolved.mcatBreakdown.bb,
+        ps: resolved.mcatBreakdown.ps,
+      },
+      hours: {
+        clinical: resolved.clinicalHours,
+        research: resolved.researchHours,
+        volunteering: resolved.volunteerHours,
+        shadowing: resolved.shadowingHours,
+        leadership: resolved.leadershipHours,
+      },
+      personalStatement: resolved.personalStatement,
+      appStatus: resolved.appStatus,
+    })
+    setTimeout(() => {
+      isHydratingRef.current = false
+    }, 0)
+  }, [authLoading, authProfile])
+
+  const applyProfile = useCallback((updater: Profile | ((profile: Profile) => Profile)) => {
+    setProfile((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater
+      if (!isHydratingRef.current) {
+        triggerSave(next)
+      }
+      return next
+    })
+  }, [triggerSave])
+
   const startEdit = (field: string, value: string) => {
     setEditField(field)
     setDrafts((d) => ({ ...d, [field]: value }))
   }
 
   const commitEdit = (field: keyof Profile) => {
-    setProfile((p) => ({ ...p, [field]: drafts[field] ?? "" }))
+    applyProfile((p) => ({ ...p, [field]: drafts[field] ?? "" }))
     setEditField(null)
   }
 
@@ -265,14 +346,18 @@ export default function ProfilePage() {
     const val = Math.min(132, Math.max(118, parseInt(mcatDraft) || (fallback as number)))
     const updated = { ...profile.mcat, [mcatEdit]: val }
     updated.total = updated.cp + updated.cars + updated.bb + updated.ps
-    setProfile((p) => ({ ...p, mcat: updated }))
+    applyProfile((p) => ({ ...p, mcat: updated }))
     setMcatEdit(null)
   }
 
   const handleAvatar = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    setProfile((p) => ({ ...p, avatar: URL.createObjectURL(file) }))
+    const reader = new FileReader()
+    reader.onload = () => {
+      applyProfile((p) => ({ ...p, avatar: typeof reader.result === "string" ? reader.result : p.avatar }))
+    }
+    reader.readAsDataURL(file)
   }
 
   const statusIdx = STATUS_STEPS.findIndex((s) => s.key === profile.appStatus)
@@ -312,10 +397,13 @@ export default function ProfilePage() {
                   style={{ borderColor: "rgba(191,87,0,0.30)", background: "#1E293B" }}
                 >
                   {profile.avatar ? (
-                    <img
+                    <Image
                       src={profile.avatar}
                       alt="avatar"
-                      className="w-full h-full object-cover"
+                      fill
+                      unoptimized
+                      sizes="88px"
+                      className="object-cover"
                     />
                   ) : (
                     <User
@@ -480,7 +568,7 @@ export default function ProfilePage() {
                 return (
                   <div key={step.key} className="flex items-center flex-1">
                     <button
-                      onClick={() => setProfile((p) => ({ ...p, appStatus: step.key }))}
+                      onClick={() => applyProfile((p) => ({ ...p, appStatus: step.key }))}
                       className="flex flex-col items-center gap-2 flex-shrink-0 group"
                     >
                       <div
@@ -564,7 +652,7 @@ export default function ProfilePage() {
                                 }
                                 onKeyDown={(e) => {
                                   if (e.key === "Enter") {
-                                    setProfile((p) => ({
+                                    applyProfile((p) => ({
                                       ...p,
                                       gpa: {
                                         ...p.gpa,
@@ -584,7 +672,7 @@ export default function ProfilePage() {
                               />
                               <button
                                 onClick={() => {
-                                  setProfile((p) => ({
+                                  applyProfile((p) => ({
                                     ...p,
                                     gpa: {
                                       ...p.gpa,
@@ -754,6 +842,12 @@ export default function ProfilePage() {
                         Saved
                       </span>
                     )}
+                    {saveError && (
+                      <span className="text-red-400 flex items-center gap-1.5">
+                        <AlertCircle size={11} />
+                        Save failed
+                      </span>
+                    )}
                     <span
                       style={{
                         color:
@@ -784,8 +878,7 @@ export default function ProfilePage() {
                   rows={14}
                   value={profile.personalStatement}
                   onChange={(e) => {
-                    setProfile((p) => ({ ...p, personalStatement: e.target.value }))
-                    triggerSave()
+                    applyProfile((p) => ({ ...p, personalStatement: e.target.value }))
                   }}
                   placeholder="Begin writing your personal statement…"
                   className="w-full bg-transparent text-white/75 leading-[1.78] resize-none focus:outline-none placeholder:text-white/15"
@@ -799,6 +892,12 @@ export default function ProfilePage() {
                   <div className="flex items-center gap-1.5 mt-2 text-xs text-red-400">
                     <AlertCircle size={11} />
                     {words - 650} words over limit — trim before submitting
+                  </div>
+                )}
+
+                {saveError && (
+                  <div className="mt-2 text-xs text-red-400">
+                    {saveError}
                   </div>
                 )}
               </Card>
@@ -832,7 +931,7 @@ export default function ProfilePage() {
                               value={cur}
                               onChange={(e) => {
                                 const n = Math.max(0, parseInt(e.target.value) || 0)
-                                setProfile((p) => ({
+                                applyProfile((p) => ({
                                   ...p,
                                   hours: { ...p.hours, [key]: n },
                                 }))

@@ -10,17 +10,9 @@ import {
   Legend,
 } from "recharts";
 import { TrendingUp, TrendingDown, ArrowRight } from "lucide-react";
-import { useTheme } from "@/app/providers";
-import { userProfile, utMedian } from "@/lib/mock-data";
-
-const USER = {
-  gpa: userProfile.gpa,
-  mcat: userProfile.mcat,
-  clinicalHours: userProfile.clinicalHours,
-  researchHours: userProfile.researchHours,
-  volunteerHours: userProfile.volunteerHours,
-  shadowingHours: userProfile.shadowingHours,
-};
+import { useAuth, useTheme } from "@/app/providers";
+import { utMedian } from "@/lib/mock-data";
+import { resolveUserProfile } from "@/lib/user-profile";
 
 const UT_MEDIAN = {
   gpa: utMedian.gpa,
@@ -44,17 +36,8 @@ function norm(value: number, key: keyof typeof AXIS_MAX) {
   return Math.round((Math.min(value, AXIS_MAX[key]) / AXIS_MAX[key]) * 100);
 }
 
-const RADAR_DATA = [
-  { axis: "GPA", user: norm(USER.gpa, "gpa"), median: norm(UT_MEDIAN.gpa, "gpa") },
-  { axis: "MCAT", user: norm(USER.mcat, "mcat"), median: norm(UT_MEDIAN.mcat, "mcat") },
-  { axis: "Clinical", user: norm(USER.clinicalHours, "clinicalHours"), median: norm(UT_MEDIAN.clinicalHours, "clinicalHours") },
-  { axis: "Research", user: norm(USER.researchHours, "researchHours"), median: norm(UT_MEDIAN.researchHours, "researchHours") },
-  { axis: "Volunteer", user: norm(USER.volunteerHours, "volunteerHours"), median: norm(UT_MEDIAN.volunteerHours, "volunteerHours") },
-  { axis: "Shadowing", user: norm(USER.shadowingHours, "shadowingHours"), median: norm(UT_MEDIAN.shadowingHours, "shadowingHours") },
-];
-
 const STATS: {
-  key: keyof typeof USER;
+  key: "gpa" | "mcat" | "clinicalHours" | "researchHours" | "volunteerHours" | "shadowingHours";
   label: string;
   unit: string;
   format: (v: number) => string;
@@ -158,7 +141,25 @@ function RadarLegend() {
 }
 
 export default function UTBenchmarksPage() {
+  const { profile } = useAuth();
   const { theme } = useTheme();
+  const currentUser = resolveUserProfile(profile);
+  const USER = {
+    gpa: currentUser.gpa,
+    mcat: currentUser.mcat,
+    clinicalHours: currentUser.clinicalHours,
+    researchHours: currentUser.researchHours,
+    volunteerHours: currentUser.volunteerHours,
+    shadowingHours: currentUser.shadowingHours,
+  };
+  const RADAR_DATA = [
+    { axis: "GPA", user: norm(USER.gpa, "gpa"), median: norm(UT_MEDIAN.gpa, "gpa") },
+    { axis: "MCAT", user: norm(USER.mcat, "mcat"), median: norm(UT_MEDIAN.mcat, "mcat") },
+    { axis: "Clinical", user: norm(USER.clinicalHours, "clinicalHours"), median: norm(UT_MEDIAN.clinicalHours, "clinicalHours") },
+    { axis: "Research", user: norm(USER.researchHours, "researchHours"), median: norm(UT_MEDIAN.researchHours, "researchHours") },
+    { axis: "Volunteer", user: norm(USER.volunteerHours, "volunteerHours"), median: norm(UT_MEDIAN.volunteerHours, "volunteerHours") },
+    { axis: "Shadowing", user: norm(USER.shadowingHours, "shadowingHours"), median: norm(UT_MEDIAN.shadowingHours, "shadowingHours") },
+  ];
   const isLight = theme === "light";
   const gridStroke = isLight ? "rgba(0,0,0,0.10)" : "rgba(255,255,255,0.08)";
   const medianStroke = isLight ? "rgba(0,0,0,0.35)" : "rgba(255,255,255,0.35)";

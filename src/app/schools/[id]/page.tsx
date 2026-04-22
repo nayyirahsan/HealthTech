@@ -15,7 +15,8 @@ import {
   heatColor,
 } from "@/lib/schools-data";
 import { calcProbability, tierFromProb, TIER_LABEL } from "@/lib/chance";
-import { userProfile } from "@/lib/mock-data";
+import { createClient } from "@/lib/supabase/server";
+import { PROFILE_SELECT, resolveUserProfile } from "@/lib/user-profile";
 
 const TIER_CFG = {
   reach:  { bg: "bg-red-500/15",     text: "text-red-400",     border: "border-red-500/25"   },
@@ -23,16 +24,24 @@ const TIER_CFG = {
   safety: { bg: "bg-emerald-500/15", text: "text-emerald-400", border: "border-emerald-500/25" },
 } as const;
 
-export default function SchoolDetailPage({
+export default async function SchoolDetailPage({
   params,
 }: {
   params: { id: string };
 }) {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data: profile } = user
+    ? await supabase.from("users").select(PROFILE_SELECT).eq("id", user.id).maybeSingle()
+    : { data: null };
+  const currentUser = resolveUserProfile(profile);
   const id = Number(params.id);
   const school = Number.isFinite(id) ? getSchoolById(id) : undefined;
   if (!school) notFound();
 
-  const pct = calcProbability(userProfile.gpa, userProfile.mcat, school);
+  const pct = calcProbability(currentUser.gpa, currentUser.mcat, school);
   const tier = tierFromProb(pct);
   const cfg = TIER_CFG[tier];
 
@@ -247,25 +256,25 @@ export default function SchoolDetailPage({
               </span>
             </div>
             <p className="text-[11px] text-white/30 mt-2">
-              Based on your GPA {userProfile.gpa.toFixed(2)} & MCAT {userProfile.mcat} vs this school&apos;s medians.
+              Based on your GPA {currentUser.gpa.toFixed(2)} & MCAT {currentUser.mcat} vs this school&apos;s medians.
             </p>
 
             <div className="mt-4 pt-4 border-t border-white/10 space-y-2">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-white/40">Your GPA</span>
                 <span className="font-mono text-white/70">
-                  {userProfile.gpa.toFixed(2)}{" "}
-                  <span className={userProfile.gpa >= school.medianGPA ? "text-emerald-400" : "text-red-400"}>
-                    ({userProfile.gpa >= school.medianGPA ? "+" : ""}{(userProfile.gpa - school.medianGPA).toFixed(2)})
+                  {currentUser.gpa.toFixed(2)}{" "}
+                  <span className={currentUser.gpa >= school.medianGPA ? "text-emerald-400" : "text-red-400"}>
+                    ({currentUser.gpa >= school.medianGPA ? "+" : ""}{(currentUser.gpa - school.medianGPA).toFixed(2)})
                   </span>
                 </span>
               </div>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-white/40">Your MCAT</span>
                 <span className="font-mono text-white/70">
-                  {userProfile.mcat}{" "}
-                  <span className={userProfile.mcat >= school.medianMCAT ? "text-emerald-400" : "text-red-400"}>
-                    ({userProfile.mcat >= school.medianMCAT ? "+" : ""}{userProfile.mcat - school.medianMCAT})
+                  {currentUser.mcat}{" "}
+                  <span className={currentUser.mcat >= school.medianMCAT ? "text-emerald-400" : "text-red-400"}>
+                    ({currentUser.mcat >= school.medianMCAT ? "+" : ""}{currentUser.mcat - school.medianMCAT})
                   </span>
                 </span>
               </div>

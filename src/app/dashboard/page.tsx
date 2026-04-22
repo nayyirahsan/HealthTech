@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import {
   AlertCircle,
@@ -10,18 +10,12 @@ import {
   TrendingDown,
   Minus,
 } from "lucide-react";
-import { useTheme } from "@/app/providers";
+import { useAuth, useTheme } from "@/app/providers";
 import { createClient } from "@/lib/supabase/client";
 import { getTopSuggestions, daysUntil } from "@/lib/suggestions";
-import { userProfile, utMedian, cycleDates } from "@/lib/mock-data";
+import { utMedian, cycleDates } from "@/lib/mock-data";
 import { calcProbability, tierFromProb, type Tier } from "@/lib/chance";
-
-const USER = {
-  gpa: userProfile.gpa,
-  mcat: userProfile.mcat,
-  clinicalHours: userProfile.clinicalHours,
-  researchHours: userProfile.researchHours,
-};
+import { resolveUserProfile } from "@/lib/user-profile";
 
 const UT_MEDIAN = {
   gpa: utMedian.gpa,
@@ -51,11 +45,6 @@ const FEATURED_SCHOOLS: SchoolSeed[] = [
   { id: 4, name: "UT Health Houston", abbr: "UTH", medianGPA: 3.81, medianMCAT: 514, acceptanceRate: 5.8 },
   { id: 5, name: "Mayo Clinic Alix", abbr: "MAYO", medianGPA: 3.92, medianMCAT: 522, acceptanceRate: 1.9 },
 ];
-
-const SCHOOLS_FALLBACK: SchoolRow[] = FEATURED_SCHOOLS.map((school) => {
-  const pct = calcProbability(USER.gpa, USER.mcat, school);
-  return { ...school, pct, tier: tierFromProb(pct) };
-});
 
 const TIER_CFG: Record<Tier, { label: string; bg: string; text: string; border: string }> = {
   reach: { label: "Reach", bg: "bg-red-500/15", text: "text-red-400", border: "border-red-500/25" },
@@ -142,12 +131,33 @@ function StatCard({
 }
 
 export default function DashboardPage() {
+  const { profile } = useAuth();
   const { theme } = useTheme();
-  const emptyFill = theme === "light" ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.05)";
-  const [schools, setSchools] = useState<SchoolRow[]>(SCHOOLS_FALLBACK);
-  const [acceptancePct, setAcceptancePct] = useState(
-    Math.round(SCHOOLS_FALLBACK.reduce((sum, school) => sum + school.pct, 0) / SCHOOLS_FALLBACK.length),
+  const currentUser = resolveUserProfile(profile);
+  const USER = {
+    gpa: currentUser.gpa,
+    mcat: currentUser.mcat,
+    clinicalHours: currentUser.clinicalHours,
+    researchHours: currentUser.researchHours,
+  };
+  const fallbackSchools = useMemo(
+    () =>
+      FEATURED_SCHOOLS.map((school) => {
+        const pct = calcProbability(USER.gpa, USER.mcat, school);
+        return { ...school, pct, tier: tierFromProb(pct) };
+      }),
+    [USER.gpa, USER.mcat],
   );
+  const emptyFill = theme === "light" ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.05)";
+  const [schools, setSchools] = useState<SchoolRow[]>(fallbackSchools);
+  const [acceptancePct, setAcceptancePct] = useState(
+    Math.round(fallbackSchools.reduce((sum, school) => sum + school.pct, 0) / fallbackSchools.length),
+  );
+
+  useEffect(() => {
+    setSchools(fallbackSchools);
+    setAcceptancePct(Math.round(fallbackSchools.reduce((sum, school) => sum + school.pct, 0) / fallbackSchools.length));
+  }, [fallbackSchools]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -186,7 +196,7 @@ export default function DashboardPage() {
           setAcceptancePct(Math.round(data[0].acceptance_rate));
         }
       });
-  }, []);
+  }, [USER.gpa, USER.mcat]);
 
   const daysToCycle = daysUntil(cycleDates.tmdsasOpens);
   const cycleMessage =
@@ -264,8 +274,8 @@ export default function DashboardPage() {
 
       <div className="flex items-baseline justify-between">
         <div>
-          <h1 className="text-xl font-bold text-white tracking-tight">Welcome back, {userProfile.firstName}</h1>
-          <p className="text-sm text-white/35 mt-0.5">Here&apos;s where you stand heading into the {userProfile.appCycle} cycle.</p>
+          <h1 className="text-xl font-bold text-white tracking-tight">Welcome back, {currentUser.firstName}</h1>
+          <p className="text-sm text-white/35 mt-0.5">Here&apos;s where you stand heading into the {currentUser.appCycle} cycle.</p>
         </div>
         <span className="text-[11px] text-white/20 font-mono">Last updated today</span>
       </div>

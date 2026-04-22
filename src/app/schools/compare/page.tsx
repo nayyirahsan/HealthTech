@@ -2,7 +2,8 @@ import Link from "next/link";
 import { ArrowLeft, X } from "lucide-react";
 import { SCHOOLS, getSchoolById, type School } from "@/lib/schools-data";
 import { calcProbability, tierFromProb, TIER_LABEL, type Tier } from "@/lib/chance";
-import { userProfile } from "@/lib/mock-data";
+import { createClient } from "@/lib/supabase/server";
+import { PROFILE_SELECT, resolveUserProfile } from "@/lib/user-profile";
 
 const TIER_CFG: Record<Tier, { bg: string; text: string; border: string }> = {
   reach:  { bg: "bg-red-500/15",     text: "text-red-400",     border: "border-red-500/25"   },
@@ -30,18 +31,26 @@ function bestValue(values: number[], mode: "max" | "min"): number | null {
   return mode === "max" ? Math.max(...values) : Math.min(...values);
 }
 
-export default function SchoolComparePage({
+export default async function SchoolComparePage({
   searchParams,
 }: {
   searchParams: { ids?: string | string[] };
 }) {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data: profile } = user
+    ? await supabase.from("users").select(PROFILE_SELECT).eq("id", user.id).maybeSingle()
+    : { data: null };
+  const currentUser = resolveUserProfile(profile);
   const rawIds = parseIds(searchParams.ids);
   const schools = rawIds
     .map((id) => getSchoolById(id))
     .filter((s): s is School => !!s)
     .slice(0, 4);
 
-  const chances = schools.map((s) => calcProbability(userProfile.gpa, userProfile.mcat, s));
+  const chances = schools.map((s) => calcProbability(currentUser.gpa, currentUser.mcat, s));
   const gpas    = schools.map((s) => s.medianGPA);
   const mcats   = schools.map((s) => s.medianMCAT);
   const rates   = schools.map((s) => s.acceptanceRate);
