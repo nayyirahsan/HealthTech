@@ -84,10 +84,20 @@ create table if not exists public.saved_schools (
   primary key (user_id, school_id)
 );
 
+-- Chat sessions (groups of related chat_history rows for one conversation)
+create table if not exists public.chat_sessions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users(id) on delete cascade,
+  title text not null default 'New chat',
+  created_at timestamp with time zone default now(),
+  updated_at timestamp with time zone default now()
+);
+
 -- Chat history
 create table if not exists public.chat_history (
   id serial primary key,
   user_id uuid not null references public.users(id) on delete cascade,
+  session_id uuid references public.chat_sessions(id) on delete cascade,
   role text not null check (role in ('user', 'assistant')),
   content text not null,
   context_used jsonb,
@@ -168,6 +178,8 @@ create index if not exists idx_acceptance_grid_lookup on public.acceptance_grid(
 create index if not exists idx_interview_data_school on public.interview_data(school_id);
 create index if not exists idx_saved_schools_user on public.saved_schools(user_id);
 create index if not exists idx_chat_history_user on public.chat_history(user_id);
+create index if not exists idx_chat_history_session on public.chat_history(session_id, created_at);
+create index if not exists idx_chat_sessions_user_updated on public.chat_sessions(user_id, updated_at desc);
 create index if not exists idx_activities_start_date on public.activities(start_date);
 create index if not exists idx_activities_category on public.activities(category);
 create index if not exists idx_application_deadlines_date on public.application_deadlines(date);
@@ -179,6 +191,7 @@ create index if not exists idx_opportunities_mode on public.opportunities(mode);
 alter table if exists public.users enable row level security;
 alter table if exists public.saved_schools enable row level security;
 alter table if exists public.chat_history enable row level security;
+alter table if exists public.chat_sessions enable row level security;
 
 -- RLS Policies: users can only access their own data
 drop policy if exists "Users can view own profile" on public.users;
@@ -195,6 +208,14 @@ drop policy if exists "Users can view own chat history" on public.chat_history;
 create policy "Users can view own chat history" on public.chat_history for select using (auth.uid() = user_id);
 drop policy if exists "Users can insert own chat messages" on public.chat_history;
 create policy "Users can insert own chat messages" on public.chat_history for insert with check (auth.uid() = user_id);
+drop policy if exists "Users can view own chat sessions" on public.chat_sessions;
+create policy "Users can view own chat sessions" on public.chat_sessions for select using (auth.uid() = user_id);
+drop policy if exists "Users can insert own chat sessions" on public.chat_sessions;
+create policy "Users can insert own chat sessions" on public.chat_sessions for insert with check (auth.uid() = user_id);
+drop policy if exists "Users can update own chat sessions" on public.chat_sessions;
+create policy "Users can update own chat sessions" on public.chat_sessions for update using (auth.uid() = user_id);
+drop policy if exists "Users can delete own chat sessions" on public.chat_sessions;
+create policy "Users can delete own chat sessions" on public.chat_sessions for delete using (auth.uid() = user_id);
 
 -- Public read access for reference data
 alter table if exists public.schools enable row level security;

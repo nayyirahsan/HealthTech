@@ -50,7 +50,10 @@ export default async function SchoolComparePage({
     .filter((s): s is School => !!s)
     .slice(0, 4);
 
-  const chances = schools.map((s) => calcProbability(currentUser.gpa, currentUser.mcat, s));
+  const hasStats = currentUser.gpa > 0 && currentUser.mcat > 0;
+  const chances = schools.map((s) =>
+    hasStats ? calcProbability(currentUser.gpa, currentUser.mcat, s) : null
+  );
   const gpas    = schools.map((s) => s.medianGPA);
   const mcats   = schools.map((s) => s.medianMCAT);
   const rates   = schools.map((s) => s.acceptanceRate);
@@ -65,7 +68,8 @@ export default async function SchoolComparePage({
   const bestRate = bestValue(rates,  "max");
   const bestTui  = bestValue(tuis,   "min");
   const bestUt   = bestValue(utAccs, "max");
-  const bestChance = bestValue(chances, "max");
+  const validChances = chances.filter((c): c is number => c != null);
+  const bestChance = bestValue(validChances, "max");
 
   return (
     <div className="min-h-full bg-[#0F172A]">
@@ -102,8 +106,8 @@ export default async function SchoolComparePage({
             <div className={`grid gap-4 mb-6`} style={{ gridTemplateColumns: `repeat(${schools.length}, minmax(0, 1fr))` }}>
               {schools.map((school, i) => {
                 const pct = chances[i];
-                const tier = tierFromProb(pct);
-                const cfg = TIER_CFG[tier];
+                const tier = pct != null ? tierFromProb(pct) : null;
+                const cfg = tier ? TIER_CFG[tier] : null;
                 return (
                   <div key={school.id} className="bg-white/[0.04] border border-white/10 rounded-xl p-5 relative">
                     <Link
@@ -129,10 +133,16 @@ export default async function SchoolComparePage({
                     </Link>
 
                     <div className="mt-4 pt-4 border-t border-white/10 flex items-baseline gap-2">
-                      <span className="font-mono text-2xl font-bold text-white leading-none">{pct}%</span>
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${cfg.bg} ${cfg.text} ${cfg.border}`}>
-                        {TIER_LABEL[tier]}
-                      </span>
+                      {pct != null && tier && cfg ? (
+                        <>
+                          <span className="font-mono text-2xl font-bold text-white leading-none">{pct}%</span>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${cfg.bg} ${cfg.text} ${cfg.border}`}>
+                            {TIER_LABEL[tier]}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-xs text-white/40">Add GPA + MCAT in onboarding to see your chance</span>
+                      )}
                     </div>
                     <p className="text-[10px] text-white/30 mt-1">Your chance</p>
                   </div>
@@ -215,8 +225,8 @@ export default async function SchoolComparePage({
                   <Row
                     label="Your Chance"
                     values={schools.map((_, i) => ({
-                      display: chances[i] + "%",
-                      isBest: chances[i] === bestChance,
+                      display: chances[i] != null ? chances[i] + "%" : "—",
+                      isBest: chances[i] != null && chances[i] === bestChance,
                       key: `chance-${i}`,
                     }))}
                   />

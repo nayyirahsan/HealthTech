@@ -12,6 +12,9 @@ import {
   FlaskConical,
   AlertCircle,
   Loader2,
+  Plus,
+  X,
+  MessageSquare,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -26,6 +29,20 @@ interface Source {
   type: string;
   label: string;
   detail: string;
+}
+
+interface SessionSummary {
+  id: string;
+  title: string;
+  updated_at: string;
+}
+
+interface PersistedMessage {
+  id: number;
+  role: "user" | "assistant";
+  content: string;
+  context_used: { citations?: Source[] } | null;
+  created_at: string;
 }
 
 // ── Suggested prompts ─────────────────────────────────────────────────────────
@@ -47,6 +64,29 @@ const SOURCE_ICON: Record<string, React.ReactNode> = {
   acceptance_grid: <Database     size={11} />,
   interview_data:  <FlaskConical size={11} />,
 };
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function dedupeSources(sources: Source[]): Source[] {
+  return sources.filter(
+    (s, i, arr) =>
+      arr.findIndex((x) => x.label === s.label && x.detail === s.detail) === i,
+  );
+}
+
+function relativeTime(iso: string): string {
+  const then = new Date(iso).getTime();
+  const diffMs = Date.now() - then;
+  const m = Math.floor(diffMs / 60_000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d === 1) return "yesterday";
+  if (d < 7) return `${d}d ago`;
+  return new Date(iso).toLocaleDateString();
+}
 
 // ── Simple markdown renderer (bold + bullets + headings) ──────────────────────
 
@@ -128,6 +168,81 @@ function TypingIndicator() {
             />
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Sessions sidebar ──────────────────────────────────────────────────────────
+
+function SessionsSidebar({
+  sessions,
+  activeId,
+  onNew,
+  onSelect,
+  onDelete,
+}: {
+  sessions: SessionSummary[];
+  activeId: string | null;
+  onNew: () => void;
+  onSelect: (id: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  return (
+    <div className="w-[220px] shrink-0 flex flex-col border-r border-white/10">
+      <div className="px-3 pt-4 pb-3 shrink-0">
+        <button
+          onClick={onNew}
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-[#BF5700]/15 hover:bg-[#BF5700]/25 border border-[#BF5700]/30 text-[#BF5700] text-xs font-medium transition-colors"
+        >
+          <Plus size={13} />
+          New chat
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-2 pb-3 space-y-0.5">
+        {sessions.length === 0 ? (
+          <div className="flex flex-col items-center justify-center text-center gap-2 mt-8 px-3">
+            <MessageSquare size={18} className="text-white/15" />
+            <p className="text-[11px] text-white/25 leading-relaxed">
+              Your saved chats will appear here.
+            </p>
+          </div>
+        ) : (
+          sessions.map((s) => {
+            const isActive = s.id === activeId;
+            return (
+              <div
+                key={s.id}
+                className={`group relative rounded-lg transition-colors ${
+                  isActive
+                    ? "bg-[#BF5700]/15 border border-[#BF5700]/30"
+                    : "hover:bg-white/[0.04] border border-transparent"
+                }`}
+              >
+                <button
+                  onClick={() => onSelect(s.id)}
+                  className="w-full text-left px-3 py-2 pr-7"
+                >
+                  <p className={`text-xs truncate ${isActive ? "text-white" : "text-white/70"}`}>
+                    {s.title}
+                  </p>
+                  <p className="text-[10px] text-white/30 mt-0.5">{relativeTime(s.updated_at)}</p>
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(s.id);
+                  }}
+                  className="absolute top-1/2 -translate-y-1/2 right-1.5 w-5 h-5 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-white/10 transition-opacity"
+                  aria-label="Delete chat"
+                >
+                  <X size={11} className="text-white/50" />
+                </button>
+              </div>
+            );
+          })
+        )}
       </div>
     </div>
   );
@@ -229,11 +344,13 @@ function ContextPanel({ sources }: { sources: Source[] }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function ChatPage() {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input,    setInput]    = useState("");
-  const [loading,  setLoading]  = useState(false);
-  const [error,    setError]    = useState<string | null>(null);
-  const [sources,  setSources]  = useState<Source[]>([]);
+  const [messages,  setMessages]  = useState<Message[]>([]);
+  const [input,     setInput]     = useState("");
+  const [loading,   setLoading]   = useState(false);
+  const [error,     setError]     = useState<string | null>(null);
+  const [sources,   setSources]   = useState<Source[]>([]);
+  const [sessions,  setSessions]  = useState<SessionSummary[]>([]);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const bottomRef  = useRef<HTMLDivElement>(null);
   const inputRef   = useRef<HTMLTextAreaElement>(null);
   const nextId     = useRef(0);
@@ -241,6 +358,80 @@ export default function ChatPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
+
+  const loadSession = useCallback(async (id: string) => {
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/chat/sessions/${id}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+
+      const persisted = (data.messages ?? []) as PersistedMessage[];
+      const mapped: Message[] = persisted.map((m) => ({
+        id:      nextId.current++,
+        role:    m.role,
+        content: m.content,
+      }));
+      setMessages(mapped);
+
+      const allCitations = persisted.flatMap((m) =>
+        m.role === "assistant" ? (m.context_used?.citations ?? []) : [],
+      );
+      setSources(dedupeSources(allCitations));
+      setSessionId(id);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to load chat");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // On mount: load sessions list, hydrate most recent
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/chat/sessions");
+        const data = await res.json();
+        if (cancelled || !res.ok) return;
+        const list: SessionSummary[] = data.sessions ?? [];
+        setSessions(list);
+        if (list.length > 0) {
+          await loadSession(list[0].id);
+        }
+      } catch {
+        // non-fatal: leave sidebar empty
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [loadSession]);
+
+  const startNewChat = useCallback(() => {
+    setMessages([]);
+    setSources([]);
+    setSessionId(null);
+    setError(null);
+    inputRef.current?.focus();
+  }, []);
+
+  const deleteSession = useCallback(async (id: string) => {
+    try {
+      const res = await fetch(`/api/chat/sessions/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? `HTTP ${res.status}`);
+      }
+      setSessions((prev) => prev.filter((s) => s.id !== id));
+      if (sessionId === id) {
+        setMessages([]);
+        setSources([]);
+        setSessionId(null);
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to delete chat");
+    }
+  }, [sessionId]);
 
   const sendMessage = useCallback(async (text: string) => {
     const trimmed = text.trim();
@@ -254,10 +445,13 @@ export default function ChatPage() {
     setLoading(true);
 
     try {
-      const res  = await fetch("/api/chat", {
+      const res = await fetch("/api/chat", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ messages: history.map(({ role, content }) => ({ role, content })) }),
+        body:    JSON.stringify({
+          messages:  history.map(({ role, content }) => ({ role, content })),
+          sessionId,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
@@ -268,12 +462,19 @@ export default function ChatPage() {
       ]);
 
       if (data.sources?.length) {
-        setSources((prev) => {
-          const combined = [...prev, ...data.sources];
-          return combined.filter(
-            (s, i, arr) =>
-              arr.findIndex((x) => x.label === s.label && x.detail === s.detail) === i,
-          );
+        setSources((prev) => dedupeSources([...prev, ...data.sources]));
+      }
+
+      const returnedId: string | undefined = data.sessionId;
+      if (returnedId) {
+        const nowIso = new Date().toISOString();
+        const wasNew = !sessionId;
+        if (wasNew) setSessionId(returnedId);
+        setSessions((prev) => {
+          const existing = prev.find((s) => s.id === returnedId);
+          const title = existing?.title ?? (trimmed.slice(0, 60) || "New chat");
+          const others = prev.filter((s) => s.id !== returnedId);
+          return [{ id: returnedId, title, updated_at: nowIso }, ...others];
         });
       }
     } catch (err: unknown) {
@@ -282,7 +483,7 @@ export default function ChatPage() {
       setLoading(false);
       inputRef.current?.focus();
     }
-  }, [messages, loading]);
+  }, [messages, loading, sessionId]);
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -296,8 +497,17 @@ export default function ChatPage() {
   return (
     <div className="h-[calc(100vh-3rem)] bg-[#0F172A] flex overflow-hidden">
 
-      {/* ── Conversation pane (65%) ── */}
-      <div className="flex-[65] flex flex-col border-r border-white/10 min-w-0">
+      {/* ── Sessions sidebar ── */}
+      <SessionsSidebar
+        sessions={sessions}
+        activeId={sessionId}
+        onNew={startNewChat}
+        onSelect={(id) => { if (id !== sessionId) loadSession(id); }}
+        onDelete={deleteSession}
+      />
+
+      {/* ── Conversation pane ── */}
+      <div className="flex-1 flex flex-col border-r border-white/10 min-w-0">
 
         {/* Header */}
         <div className="px-6 py-4 border-b border-white/10 shrink-0">
@@ -309,7 +519,7 @@ export default function ChatPage() {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-          {isEmpty && (
+          {isEmpty && !loading && (
             <div className="flex flex-col items-center justify-center h-full text-center gap-4 pb-24">
               <div className="w-12 h-12 rounded-full bg-[#BF5700]/15 border border-[#BF5700]/25 flex items-center justify-center">
                 <span className="text-lg font-bold text-[#BF5700]">AI</span>
@@ -340,7 +550,7 @@ export default function ChatPage() {
         </div>
 
         {/* Suggested prompts — only before first message */}
-        {isEmpty && (
+        {isEmpty && !loading && (
           <div className="px-6 pb-3 flex flex-wrap gap-2 shrink-0">
             {SUGGESTED.map((prompt) => (
               <button
@@ -382,8 +592,8 @@ export default function ChatPage() {
         </div>
       </div>
 
-      {/* ── Context panel (35%) ── */}
-      <div className="flex-[35] min-w-[220px] max-w-[340px]">
+      {/* ── Context panel ── */}
+      <div className="w-[300px] shrink-0">
         <ContextPanel sources={sources} />
       </div>
 

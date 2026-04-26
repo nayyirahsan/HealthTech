@@ -10,6 +10,8 @@ import {
 } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/app/providers";
+import type { UserProfileRow } from "@/lib/user-profile";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -38,6 +40,16 @@ interface ActivityRow {
   description: string;
   most_meaningful: boolean;
 }
+
+type OnboardingActivityField = {
+  id: string;
+  name: string;
+  category: Category;
+  field: keyof Pick<
+    UserProfileRow,
+    "clinical_hours" | "research_hours" | "volunteer_hours" | "shadowing_hours" | "leadership_hours"
+  >;
+};
 
 interface FormState {
   name: string;
@@ -78,9 +90,14 @@ const EMPTY_FORM: FormState = {
   startDate: "", endDate: "", hours: "", description: "", mostMeaningful: false,
 };
 
-// ── Mock Data ─────────────────────────────────────────────────────────────────
+const ONBOARDING_ACTIVITY_FIELDS: OnboardingActivityField[] = [
+  { id: "profile-clinical", name: "Clinical experience from onboarding", category: "Clinical", field: "clinical_hours" },
+  { id: "profile-research", name: "Research experience from onboarding", category: "Research", field: "research_hours" },
+  { id: "profile-volunteering", name: "Volunteer experience from onboarding", category: "Volunteering", field: "volunteer_hours" },
+  { id: "profile-shadowing", name: "Shadowing from onboarding", category: "Shadowing", field: "shadowing_hours" },
+  { id: "profile-leadership", name: "Leadership experience from onboarding", category: "Leadership", field: "leadership_hours" },
+];
 
-const SEED_ACTIVITIES: ActivityItem[] = [];
 
 function buildChartData(items: ActivityItem[]) {
   if (items.length === 0) return [];
@@ -119,6 +136,25 @@ function fmtDate(iso: string) {
   const [y, m] = iso.split("-");
   const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   return `${months[parseInt(m) - 1]} ${y}`;
+}
+
+function buildOnboardingActivities(profile: UserProfileRow | null | undefined): ActivityItem[] {
+  if (!profile) return [];
+
+  return ONBOARDING_ACTIVITY_FIELDS.map((item) => {
+    const hours = Number(profile[item.field]) || 0;
+    return {
+      id: item.id,
+      name: item.name,
+      category: item.category,
+      hours,
+      startDate: profile.created_at?.slice(0, 10) ?? new Date().toISOString().slice(0, 10),
+      endDate: "",
+      organization: "Onboarding profile",
+      description: "Aggregate hours saved during onboarding. Add detailed activities to replace this summary.",
+      mostMeaningful: false,
+    };
+  }).filter((item) => item.hours > 0);
 }
 
 function similarity(a: string, b: string): number {
@@ -550,7 +586,8 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function ActivitiesPage() {
-  const [activities, setActivities] = useState<ActivityItem[]>(SEED_ACTIVITIES);
+  const { user, profile } = useAuth();
+  const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [sheetOpen,  setSheetOpen]  = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -575,18 +612,24 @@ export default function ActivitiesPage() {
   }
 
   useEffect(() => {
+    if (!user) return;
     const supabase = createClient();
     supabase
       .from("activities")
       .select("id, name, category, hours, start_date, end_date, organization, description, most_meaningful")
+      .eq("user_id", user.id)
       .order("start_date", { ascending: false })
-      .then(({ data, error }) => {
+      .then((res: { data: unknown; error: unknown }) => {
+        const data = res.data as ActivityRow[] | null;
+        const error = res.error;
         if (!error && data && data.length > 0) {
-          setActivities(data.map((row) => mapActivityRow(row as ActivityRow)));
+          setActivities(data.map((row) => mapActivityRow(row)));
+        } else {
+          setActivities(buildOnboardingActivities(profile));
         }
         setLoading(false);
       });
-  }, []);
+  }, [user, profile]);
 
   // Derived values
   const meaningfulCount = useMemo(() => activities.filter(a => a.mostMeaningful).length, [activities]);
@@ -634,8 +677,9 @@ export default function ActivitiesPage() {
   }
 
   async function submitActivity() {
-    if (!form.name.trim() || !form.hours) return;
+    if (!form.name.trim() || !form.hours || !user) return;
     const payload = {
+      user_id: user.id,
       name: form.name.trim(),
       category: form.category,
       hours: parseFloat(form.hours) || 0,

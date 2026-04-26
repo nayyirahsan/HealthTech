@@ -1,12 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { Loader2, Mail, Lock, User } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { buildProfileSeed } from "@/lib/user-profile";
 
 type Mode = "signin" | "signup";
+
+function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`${label} timed out after ${ms / 1000}s. Check your connection and try again.`)),
+      ms
+    );
+    promise.then(
+      (value: T) => { clearTimeout(timer); resolve(value); },
+      (err: unknown) => { clearTimeout(timer); reject(err); }
+    );
+  });
+}
 
 export default function LoginPage() {
   return (
@@ -17,6 +31,7 @@ export default function LoginPage() {
 }
 
 function LoginContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null);
   const [mode, setMode] = useState<Mode>("signin");
@@ -43,38 +58,68 @@ function LoginContent() {
 
     try {
       if (mode === "signin") {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+        console.info("[login] signInWithPassword start", { email });
+        const result = await withTimeout(
+          supabase.auth.signInWithPassword({ email, password }),
+          15_000,
+          "Sign in"
+        ) as Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>;
+        if (result.error) throw result.error;
+        console.info("[login] signInWithPassword ok, navigating to", nextPath);
 
-        if (error) throw error;
-
-        window.location.assign(nextPath);
+        // router.refresh forces middleware to re-run with the new auth cookies
+        // before the client-side navigation completes.
+        router.refresh();
+        router.push(nextPath);
         return;
       }
 
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-          data: {
-            full_name: fullName,
+      console.info("[login] signUp start", { email });
+      const signupResult = await withTimeout(
+        supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
+            data: { full_name: fullName },
           },
-        },
-      });
-
-      if (error) throw error;
+        }),
+        15_000,
+        "Sign up"
+      ) as Awaited<ReturnType<typeof supabase.auth.signUp>>;
+      if (signupResult.error) throw signupResult.error;
+      const { data } = signupResult;
+      console.info("[login] signUp ok, hasSession=", Boolean(data.session));
 
       if (data.session) {
-        window.location.assign("/onboarding");
+        // When autoconfirm is on, the auth callback route is bypassed.
+        // Create the profile row now so onboarding has something to update.
+        const sessionUser = data.session.user;
+        try {
+          const seedResult = await withTimeout(
+            supabase
+              .from("users")
+              .upsert(
+                { id: sessionUser.id, ...buildProfileSeed(sessionUser) },
+                { onConflict: "id" }
+              ),
+            10_000,
+            "Profile seed"
+          ) as { error: { message: string } | null };
+          if (seedResult.error) throw seedResult.error;
+        } catch (profileError) {
+          // Non-fatal: ensureProfile in providers.tsx will retry on page load.
+          console.warn("[login] Could not seed profile row during signup:", profileError);
+        }
+        router.refresh();
+        router.push("/onboarding");
         return;
       }
 
       setMessage("Account created. If email confirmation is enabled, check your inbox before signing in.");
       setMode("signin");
     } catch (error) {
+      console.error("[login] auth failed", error);
       setMessage(error instanceof Error ? error.message : "Unable to authenticate.");
     } finally {
       setLoading(false);

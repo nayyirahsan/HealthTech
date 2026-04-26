@@ -82,8 +82,17 @@ export interface SavedSchool {
 export interface ChatMessage {
   id: number;
   user_id: string;
+  session_id: string | null;
   role: "user" | "assistant";
   content: string;
   context_used: Record<string, unknown> | null;
   created_at: string;
+}
+
+export interface ChatSession {
+  id: string;
+  user_id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
 }

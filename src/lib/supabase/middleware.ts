@@ -1,10 +1,20 @@
 import { createServerClient } from "@supabase/ssr";
+import type { User } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 import { isPublicPath } from "@/lib/app-routes";
 import {
   PROFILE_SELECT,
   isOnboardingComplete,
 } from "@/lib/user-profile";
+
+function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    Promise.resolve(promise),
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+    ),
+  ]);
+}
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -30,9 +40,14 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user: User | null = null;
+  try {
+    const result = await withTimeout(supabase.auth.getUser(), 8_000, "middleware getUser");
+    user = result.data.user;
+  } catch (err) {
+    console.error("[middleware] getUser failed:", err);
+    // Treat as unauthenticated rather than blocking the request indefinitely.
+  }
 
   const pathname = request.nextUrl.pathname;
   const loginUrl = new URL("/login", request.url);
@@ -68,11 +83,23 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse;
   }
 
-  const { data: profile } = await supabase
-    .from("users")
-    .select(PROFILE_SELECT)
-    .eq("id", user.id)
-    .maybeSingle();
+  let profile = null;
+  try {
+    const { data } = await withTimeout(
+      supabase
+        .from("users")
+        .select(PROFILE_SELECT)
+        .eq("id", user.id)
+        .maybeSingle(),
+      8_000,
+      "middleware profile select"
+    );
+    profile = data;
+  } catch (err) {
+    // If the profile query fails (missing columns, network error, timeout),
+    // treat as incomplete so the user reaches onboarding where ensureProfile can retry.
+    console.error("[middleware] profile select failed:", err);
+  }
 
   const complete = isOnboardingComplete(profile);
 

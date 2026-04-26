@@ -1,5 +1,3 @@
-import { userProfile as mockUserProfile } from "@/lib/mock-data";
-
 export type AppStatus = "pre-app" | "applied" | "interviewing" | "accepted";
 
 export interface McatBreakdown {
@@ -35,29 +33,7 @@ export interface UserProfileRow {
 
 export type UserProfileUpdate = Partial<Omit<UserProfileRow, "id" | "created_at">>;
 
-export const PROFILE_SELECT = `
-  id,
-  email,
-  full_name,
-  eid,
-  gpa,
-  science_gpa,
-  mcat_score,
-  mcat_breakdown,
-  major,
-  residency_state,
-  graduation_year,
-  app_cycle,
-  clinical_hours,
-  research_hours,
-  volunteer_hours,
-  shadowing_hours,
-  leadership_hours,
-  personal_statement,
-  app_status,
-  avatar_url,
-  created_at
-`;
+export const PROFILE_SELECT = "id,email,full_name,eid,gpa,science_gpa,mcat_score,mcat_breakdown,major,residency_state,graduation_year,app_cycle,clinical_hours,research_hours,volunteer_hours,shadowing_hours,leadership_hours,personal_statement,app_status,avatar_url,created_at";
 
 export function buildProfileSeed(user: {
   id: string;
@@ -110,32 +86,32 @@ export function isOnboardingComplete(profile: UserProfileRow | null | undefined)
 
 export function resolveUserProfile(profile: UserProfileRow | null | undefined) {
   const breakdown = profile?.mcat_breakdown;
-  const fullName = profile?.full_name || mockUserProfile.fullName;
+  const fullName = profile?.full_name ?? "";
 
   return {
-    id: profile?.id ?? "mock-user",
-    email: profile?.email || "alexj@utexas.edu",
+    id: profile?.id ?? "",
+    email: profile?.email ?? "",
     fullName,
-    firstName: fullName.split(" ")[0] || mockUserProfile.firstName,
-    eid: profile?.eid || mockUserProfile.eid,
-    major: profile?.major || mockUserProfile.major,
-    residencyState: profile?.residency_state || mockUserProfile.residencyState,
-    graduationYear: profile?.graduation_year ?? mockUserProfile.graduationYear,
-    appCycle: profile?.app_cycle || mockUserProfile.appCycle,
-    gpa: profile?.gpa ?? mockUserProfile.gpa,
-    scienceGpa: profile?.science_gpa ?? mockUserProfile.scienceGpa,
-    mcat: profile?.mcat_score ?? mockUserProfile.mcat,
+    firstName: fullName.split(" ")[0] ?? "",
+    eid: profile?.eid ?? "",
+    major: profile?.major ?? "",
+    residencyState: profile?.residency_state ?? "",
+    graduationYear: profile?.graduation_year ?? 0,
+    appCycle: profile?.app_cycle ?? "",
+    gpa: profile?.gpa ?? 0,
+    scienceGpa: profile?.science_gpa ?? 0,
+    mcat: profile?.mcat_score ?? 0,
     mcatBreakdown: {
-      cp: breakdown?.chem_phys ?? mockUserProfile.mcatBreakdown.cp,
-      cars: breakdown?.cars ?? mockUserProfile.mcatBreakdown.cars,
-      bb: breakdown?.bio ?? mockUserProfile.mcatBreakdown.bb,
-      ps: breakdown?.psych ?? mockUserProfile.mcatBreakdown.ps,
+      cp: breakdown?.chem_phys ?? 0,
+      cars: breakdown?.cars ?? 0,
+      bb: breakdown?.bio ?? 0,
+      ps: breakdown?.psych ?? 0,
     },
-    clinicalHours: profile?.clinical_hours ?? mockUserProfile.clinicalHours,
-    researchHours: profile?.research_hours ?? mockUserProfile.researchHours,
-    volunteerHours: profile?.volunteer_hours ?? mockUserProfile.volunteerHours,
-    shadowingHours: profile?.shadowing_hours ?? mockUserProfile.shadowingHours,
-    leadershipHours: profile?.leadership_hours ?? mockUserProfile.leadershipHours,
+    clinicalHours: profile?.clinical_hours ?? 0,
+    researchHours: profile?.research_hours ?? 0,
+    volunteerHours: profile?.volunteer_hours ?? 0,
+    shadowingHours: profile?.shadowing_hours ?? 0,
+    leadershipHours: profile?.leadership_hours ?? 0,
     personalStatement: profile?.personal_statement ?? "",
     appStatus: profile?.app_status ?? "pre-app",
     avatarUrl: profile?.avatar_url ?? null,

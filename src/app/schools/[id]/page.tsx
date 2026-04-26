@@ -41,9 +41,10 @@ export default async function SchoolDetailPage({
   const school = Number.isFinite(id) ? getSchoolById(id) : undefined;
   if (!school) notFound();
 
-  const pct = calcProbability(currentUser.gpa, currentUser.mcat, school);
-  const tier = tierFromProb(pct);
-  const cfg = TIER_CFG[tier];
+  const hasStats = currentUser.gpa > 0 && currentUser.mcat > 0;
+  const pct = hasStats ? calcProbability(currentUser.gpa, currentUser.mcat, school) : null;
+  const tier = pct != null ? tierFromProb(pct) : null;
+  const cfg = tier ? TIER_CFG[tier] : null;
 
   return (
     <div className="min-h-full bg-[#0F172A]">
@@ -250,14 +251,22 @@ export default async function SchoolDetailPage({
               Your Chance
             </span>
             <div className="flex items-baseline gap-2 mt-3">
-              <span className="font-mono text-[2.6rem] font-bold text-white leading-none">{pct}%</span>
-              <span className={`text-[11px] px-2 py-0.5 rounded border font-medium ${cfg.bg} ${cfg.text} ${cfg.border}`}>
-                {TIER_LABEL[tier]}
-              </span>
+              {pct != null && tier && cfg ? (
+                <>
+                  <span className="font-mono text-[2.6rem] font-bold text-white leading-none">{pct}%</span>
+                  <span className={`text-[11px] px-2 py-0.5 rounded border font-medium ${cfg.bg} ${cfg.text} ${cfg.border}`}>
+                    {TIER_LABEL[tier]}
+                  </span>
+                </>
+              ) : (
+                <span className="text-sm text-white/45">Add your GPA + MCAT in onboarding to see your chance.</span>
+              )}
             </div>
-            <p className="text-[11px] text-white/30 mt-2">
-              Based on your GPA {currentUser.gpa.toFixed(2)} & MCAT {currentUser.mcat} vs this school&apos;s medians.
-            </p>
+            {pct != null && (
+              <p className="text-[11px] text-white/30 mt-2">
+                Based on your GPA {currentUser.gpa.toFixed(2)} & MCAT {currentUser.mcat} vs this school&apos;s medians.
+              </p>
+            )}
 
             <div className="mt-4 pt-4 border-t border-white/10 space-y-2">
               <div className="flex items-center justify-between text-xs">

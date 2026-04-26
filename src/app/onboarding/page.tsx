@@ -9,7 +9,7 @@ const STATES = ["TX", "CA", "FL", "GA", "IL", "MA", "NC", "NY", "OH", "PA", "WA"
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { profile, loading, updateProfile } = useAuth();
+  const { profile, profileError, loading, updateProfile } = useAuth();
   const initialForm = useMemo(
     () => ({
       fullName: profile?.full_name ?? "",
@@ -52,34 +52,47 @@ export default function OnboardingPage() {
     setSaving(true);
     setError(null);
 
-    try {
-      await updateProfile({
-        full_name: form.fullName,
-        eid: form.eid,
-        major: form.major,
-        residency_state: form.residencyState,
-        graduation_year: Number(form.graduationYear),
-        app_cycle: form.appCycle,
-        gpa: Number(form.overallGpa),
-        science_gpa: Number(form.scienceGpa),
-        mcat_score: mcatTotal,
-        mcat_breakdown: {
-          chem_phys: Number(form.cp),
-          cars: Number(form.cars),
-          bio: Number(form.bb),
-          psych: Number(form.ps),
-        },
-        clinical_hours: Number(form.clinicalHours) || 0,
-        research_hours: Number(form.researchHours) || 0,
-        volunteer_hours: Number(form.volunteerHours) || 0,
-        shadowing_hours: Number(form.shadowingHours) || 0,
-        leadership_hours: Number(form.leadershipHours) || 0,
-        app_status: form.appStatus,
-      });
+    const payload = {
+      full_name: form.fullName,
+      eid: form.eid,
+      major: form.major,
+      residency_state: form.residencyState,
+      graduation_year: Number(form.graduationYear),
+      app_cycle: form.appCycle,
+      gpa: Number(form.overallGpa),
+      science_gpa: Number(form.scienceGpa),
+      mcat_score: mcatTotal,
+      mcat_breakdown: {
+        chem_phys: Number(form.cp),
+        cars: Number(form.cars),
+        bio: Number(form.bb),
+        psych: Number(form.ps),
+      },
+      clinical_hours: Number(form.clinicalHours) || 0,
+      research_hours: Number(form.researchHours) || 0,
+      volunteer_hours: Number(form.volunteerHours) || 0,
+      shadowing_hours: Number(form.shadowingHours) || 0,
+      leadership_hours: Number(form.leadershipHours) || 0,
+      app_status: form.appStatus,
+    };
 
-      router.push("/dashboard");
+    try {
+      console.info("[onboarding] updateProfile start");
+      await Promise.race([
+        updateProfile(payload),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error("Save timed out after 15s. Check your connection and try again.")),
+            15_000
+          )
+        ),
+      ]);
+      console.info("[onboarding] updateProfile ok, navigating to /dashboard");
+
       router.refresh();
+      router.push("/dashboard");
     } catch (submitError) {
+      console.error("[onboarding] save failed", submitError);
       setError(submitError instanceof Error ? submitError.message : "Unable to save onboarding profile.");
     } finally {
       setSaving(false);
@@ -107,6 +120,12 @@ export default function OnboardingPage() {
             Complete the core academic and profile fields the app uses for your dashboard, chance views, benchmarks, and saved account.
           </p>
         </div>
+
+        {profileError && (
+          <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+            Profile error: {profileError}
+          </div>
+        )}
 
         <form className="mt-8 space-y-8" onSubmit={handleSubmit}>
           <section className="grid gap-4 md:grid-cols-2">

@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Sparkles, ArrowRight, ArrowLeft, ChevronRight } from "lucide-react";
+import { Sparkles, ArrowRight, ArrowLeft, ChevronRight, Loader2 } from "lucide-react";
 import { GPAChart, MCATChart, ActivityChart } from "@/components/next-steps/profile-charts";
 import { DeadlineCards } from "@/components/next-steps/deadline-cards";
-import { mockUser, mockRecommendations } from "@/lib/mock-data";
+import { useAuth } from "@/app/providers";
+import { createClient } from "@/lib/supabase/client";
+import { buildRecommendations, type BenchmarkRow, type Recommendation } from "@/lib/recommendations";
 
 const priorityDot: Record<string, string> = {
   high: "bg-red-500",
@@ -13,25 +15,84 @@ const priorityDot: Record<string, string> = {
   low: "bg-green-500",
 };
 
-const visualComponents: Record<string, React.ReactNode> = {
-  activity: <ActivityChart />,
-  mcat: <MCATChart />,
-  gpa: <GPAChart />,
-  deadlines: (
-    <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-      <DeadlineCards />
-    </div>
-  ),
-};
-
 export default function NextStepsPage() {
+  const { profile, loading: authLoading } = useAuth();
+  const [benchmarks, setBenchmarks] = useState<BenchmarkRow[]>([]);
+  const [benchLoading, setBenchLoading] = useState(true);
   const [step, setStep] = useState(0);
-  const current = mockRecommendations[step];
-  const isLast = step === mockRecommendations.length - 1;
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase
+      .from("ut_benchmarks")
+      .select("metric, median_value")
+      .then((res: { data: BenchmarkRow[] | null }) => {
+        if (res.data) setBenchmarks(res.data);
+        setBenchLoading(false);
+      });
+  }, []);
+
+  const recs: Recommendation[] = useMemo(
+    () => buildRecommendations(profile, benchmarks),
+    [profile, benchmarks]
+  );
+
+  // Reset step if the recommendation list shrinks below the current index.
+  useEffect(() => {
+    if (step >= recs.length && recs.length > 0) setStep(0);
+  }, [recs.length, step]);
+
+  const visualComponents: Record<string, React.ReactNode> = {
+    activity: <ActivityChart profile={profile} benchmarks={benchmarks} />,
+    mcat: <MCATChart profile={profile} benchmarks={benchmarks} />,
+    gpa: <GPAChart profile={profile} benchmarks={benchmarks} />,
+    deadlines: (
+      <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+        <DeadlineCards />
+      </div>
+    ),
+  };
+
+  if (authLoading || benchLoading) {
+    return (
+      <div className="p-8 max-w-5xl mx-auto flex items-center gap-2 text-sm text-gray-500">
+        <Loader2 className="w-4 h-4 animate-spin" />
+        Loading your recommendations…
+      </div>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <div className="p-8 max-w-5xl mx-auto">
+        <h1 className="text-xl font-bold text-gray-900">Next Steps</h1>
+        <p className="mt-2 text-sm text-gray-500">
+          Finish onboarding so we can analyze your profile and surface tailored next steps.
+        </p>
+      </div>
+    );
+  }
+
+  if (recs.length === 0) {
+    return (
+      <div className="p-8 max-w-5xl mx-auto">
+        <h1 className="text-xl font-bold text-gray-900">You&apos;re tracking ahead of UT medians</h1>
+        <p className="mt-2 text-sm text-gray-500">
+          No gap-based recommendations to show right now. Keep an eye on the cycle deadlines below.
+        </p>
+        <div className="mt-6">
+          <DeadlineCards />
+        </div>
+      </div>
+    );
+  }
+
+  const current = recs[step];
+  const isLast = step === recs.length - 1;
+  const firstName = profile.full_name?.split(" ")[0] || "there";
 
   return (
     <div className="p-8 max-w-5xl mx-auto">
-      {/* Greeting */}
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center shrink-0">
@@ -39,23 +100,22 @@ export default function NextStepsPage() {
           </div>
           <div>
             <h1 className="text-xl font-bold text-gray-900">
-              Welcome back, {mockUser.full_name.split(" ")[0]}
+              Welcome back, {firstName}
             </h1>
             <p className="text-sm text-gray-500">
-              Your AI copilot analyzed your profile. Let&apos;s walk through your priorities.
+              Your data-driven copilot ranked these priorities from your saved profile vs. UT benchmarks.
             </p>
           </div>
         </div>
       </div>
 
       <div className="flex gap-8">
-        {/* Step list (left sidebar) */}
         <div className="hidden md:block w-56 shrink-0">
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-            Steps ({step + 1}/{mockRecommendations.length})
+            Steps ({step + 1}/{recs.length})
           </p>
           <div className="space-y-1">
-            {mockRecommendations.map((rec, i) => (
+            {recs.map((rec, i) => (
               <button
                 key={rec.id}
                 onClick={() => setStep(i)}
@@ -84,11 +144,9 @@ export default function NextStepsPage() {
           </div>
         </div>
 
-        {/* Main content area */}
         <div className="flex-1 min-w-0">
-          {/* Mobile step indicator */}
           <div className="flex md:hidden items-center gap-1.5 mb-4">
-            {mockRecommendations.map((_, i) => (
+            {recs.map((_, i) => (
               <button
                 key={i}
                 onClick={() => setStep(i)}
@@ -99,12 +157,10 @@ export default function NextStepsPage() {
             ))}
           </div>
 
-          {/* Relevant visual for this step */}
           <div className="mb-6 animate-fade-in" key={`visual-${step}`}>
             {visualComponents[current.visual]}
           </div>
 
-          {/* AI recommendation card */}
           <div
             className="bg-gradient-to-br from-orange-50 to-white rounded-2xl border border-orange-200 p-6 animate-fade-in"
             key={`rec-${step}`}
@@ -117,7 +173,7 @@ export default function NextStepsPage() {
                     {current.category}
                   </span>
                   <span className="text-xs text-gray-400">
-                    Step {step + 1} of {mockRecommendations.length}
+                    Step {step + 1} of {recs.length}
                   </span>
                 </div>
                 <h2 className="text-lg font-semibold text-gray-900 mb-2">{current.title}</h2>
@@ -125,7 +181,6 @@ export default function NextStepsPage() {
               </div>
             </div>
 
-            {/* Navigation */}
             <div className="flex items-center justify-between mt-6 pt-4 border-t border-orange-100">
               <button
                 onClick={() => setStep(Math.max(0, step - 1))}

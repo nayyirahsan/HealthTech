@@ -26,6 +26,7 @@ export function useTheme() { return useContext(ThemeContext); }
 interface AuthCtx {
   user: User | null;
   profile: UserProfileRow | null;
+  profileError: string | null;
   loading: boolean;
   refreshProfile: () => Promise<UserProfileRow | null>;
   updateProfile: (updates: UserProfileUpdate) => Promise<UserProfileRow | null>;
@@ -35,6 +36,7 @@ interface AuthCtx {
 const AuthContext = createContext<AuthCtx>({
   user: null,
   profile: null,
+  profileError: null,
   loading: true,
   refreshProfile: async () => null,
   updateProfile: async () => null,
@@ -53,6 +55,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfileRow | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
   useEffect(() => {
     setSupabase(createClient());
@@ -97,6 +100,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       .maybeSingle();
 
     if (error && status !== 406) {
+      console.error("[providers] ensureProfile select error", error);
       throw error;
     }
 
@@ -105,14 +109,21 @@ export function Providers({ children }: { children: React.ReactNode }) {
       return data;
     }
 
-    const { data: created, error: insertError } = await supabase
+    // Seed row in one upsert+returning roundtrip. Skipping `ignoreDuplicates`
+    // so PostgREST returns the row regardless of whether a concurrent insert
+    // landed first.
+    const { data: created, error: upsertError } = await supabase
       .from("users")
-      .insert({ id: currentUser.id, ...buildProfileSeed(currentUser) })
+      .upsert(
+        { id: currentUser.id, ...buildProfileSeed(currentUser) },
+        { onConflict: "id" }
+      )
       .select(PROFILE_SELECT)
       .single();
 
-    if (insertError) {
-      throw insertError;
+    if (upsertError) {
+      console.error("[providers] ensureProfile seed upsert error", upsertError);
+      throw upsertError;
     }
 
     setProfile(created);
@@ -140,7 +151,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   async function updateProfile(updates: UserProfileUpdate) {
     if (!supabase) {
-      return null;
+      throw new Error("Supabase client not ready. Please refresh the page.");
     }
 
     const {
@@ -148,20 +159,33 @@ export function Providers({ children }: { children: React.ReactNode }) {
     } = await supabase.auth.getUser();
 
     if (!currentUser) {
-      return null;
+      throw new Error("You must be logged in to update your profile.");
     }
 
-    const { data, error } = await supabase
+    // Step 1: Save data (upsert without select to avoid chaining issues)
+    const { error: upsertError } = await supabase
       .from("users")
-      .update(updates)
-      .eq("id", currentUser.id)
+      .upsert(
+        { id: currentUser.id, email: currentUser.email ?? "", ...updates },
+        { onConflict: "id" }
+      );
+
+    if (upsertError) {
+      throw upsertError;
+    }
+
+    // Step 2: Read back the saved profile
+    const { data, error: selectError } = await supabase
+      .from("users")
       .select(PROFILE_SELECT)
+      .eq("id", currentUser.id)
       .single();
 
-    if (error) {
-      throw error;
+    if (selectError) {
+      throw selectError;
     }
 
+    setProfileError(null);
     setProfile(data);
     return data;
   }
@@ -186,28 +210,33 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
     async function loadAuth() {
       try {
-        const {
-          data: { user: currentUser },
-        } = await client.auth.getUser();
+        const result = await Promise.race([
+          client.auth.getUser(),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("auth.getUser timed out after 10s")), 10_000)
+          ),
+        ]);
+        const currentUser = result.data.user;
 
         if (!mounted) return;
 
         setUser(currentUser ?? null);
-        finishAuthBootstrap();
 
         if (currentUser) {
-          void ensureProfile(currentUser).catch((error) => {
-            console.error("Failed to load user profile", error);
+          void ensureProfile(currentUser).catch((err) => {
+            console.error("[providers] Failed to load user profile", err);
+            if (mounted) {
+              setProfileError(err instanceof Error ? err.message : "Failed to load profile");
+            }
           });
         } else {
           setProfile(null);
         }
       } catch (error) {
-        console.error("Failed to initialize auth session", error);
+        console.error("[providers] Failed to initialize auth session", error);
         if (mounted) {
           setUser(null);
           setProfile(null);
-          finishAuthBootstrap();
         }
       } finally {
         if (mounted) finishAuthBootstrap();
@@ -218,24 +247,25 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
     const {
       data: { subscription },
-    } = client.auth.onAuthStateChange(async (_event, session) => {
+    } = client.auth.onAuthStateChange((_event, session) => {
       if (!mounted) return;
 
-      try {
-        const currentUser = session?.user ?? null;
-        setUser(currentUser);
-        finishAuthBootstrap();
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+      finishAuthBootstrap();
 
-        if (currentUser) {
-          await ensureProfile(currentUser);
-        } else {
-          setProfile(null);
-        }
-      } catch (error) {
-        console.error("Failed to process auth state change", error);
-        if (mounted) {
-          finishAuthBootstrap();
-        }
+      if (currentUser) {
+        // Fire-and-forget so the listener returns immediately. Errors surface
+        // through profileError instead of getting swallowed.
+        void ensureProfile(currentUser).catch((err) => {
+          console.error("[providers] auth-change ensureProfile failed", err);
+          if (mounted) {
+            setProfileError(err instanceof Error ? err.message : "Failed to load profile");
+          }
+        });
+      } else {
+        setProfile(null);
+        setProfileError(null);
       }
     });
 
@@ -250,6 +280,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       value={{
         user,
         profile,
+        profileError,
         loading,
         refreshProfile,
         updateProfile,

@@ -14,12 +14,30 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { messages } = body as {
+    const { messages, sessionId: incomingSessionId } = body as {
       messages: { role: "user" | "assistant"; content: string }[];
+      sessionId?: string | null;
     };
 
     if (!Array.isArray(messages) || messages.length === 0) {
       return NextResponse.json({ error: "messages array required" }, { status: 400 });
+    }
+
+    const latestUserMessage = messages[messages.length - 1];
+
+    let sessionId = incomingSessionId ?? null;
+    if (!sessionId) {
+      const title = latestUserMessage.content.trim().slice(0, 60) || "New chat";
+      const { data: newSession, error: sessionErr } = await supabase
+        .from("chat_sessions")
+        .insert({ user_id: user.id, title })
+        .select("id")
+        .single();
+      if (sessionErr || !newSession) {
+        console.error("[/api/chat] failed to create session", sessionErr?.message);
+        return NextResponse.json({ error: "Failed to create chat session" }, { status: 500 });
+      }
+      sessionId = newSession.id;
     }
 
     const { reply, citations } = await runAdvisor({
@@ -28,16 +46,17 @@ export async function POST(req: NextRequest) {
       messages,
     });
 
-    const latestUserMessage = messages[messages.length - 1];
     const { error: historyError } = await supabase.from("chat_history").insert([
       {
         user_id: user.id,
+        session_id: sessionId,
         role: "user",
         content: latestUserMessage.content,
         context_used: null,
       },
       {
         user_id: user.id,
+        session_id: sessionId,
         role: "assistant",
         content: reply,
         context_used: {
@@ -51,7 +70,15 @@ export async function POST(req: NextRequest) {
       console.error("[/api/chat] failed to persist chat history", historyError.message);
     }
 
-    return NextResponse.json({ reply, sources: citations });
+    const { error: bumpError } = await supabase
+      .from("chat_sessions")
+      .update({ updated_at: new Date().toISOString() })
+      .eq("id", sessionId);
+    if (bumpError) {
+      console.error("[/api/chat] failed to bump session updated_at", bumpError.message);
+    }
+
+    return NextResponse.json({ reply, sources: citations, sessionId });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error("[/api/chat]", message);

@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/app/providers";
+import { buildProfileActivityRows } from "@/lib/activity-tasks";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -23,6 +25,7 @@ type Decision = "accepted" | "waitlisted" | "rejected" | null;
 
 interface MasterDeadline {
   id: string;
+  deadlineKey: string;
   label: string;
   date: string;
   system: System;
@@ -67,6 +70,10 @@ interface DeadlineRow {
   system: System;
   type: "milestone" | "submission" | "deadline";
   description: string;
+}
+
+interface DeadlineProgressRow {
+  deadline_key: string;
   completed: boolean;
 }
 
@@ -159,15 +166,16 @@ function buildActivityTasks(rows: ActivityRow[]): PersonalTask[] {
   return [...completionTasks, ...benchmarkTasks];
 }
 
-function mapDeadlineRow(row: DeadlineRow): MasterDeadline {
+function mapDeadlineRow(row: DeadlineRow, completed: boolean): MasterDeadline {
   return {
     id: String(row.id),
+    deadlineKey: row.key,
     label: row.label,
     date: row.date,
     system: row.system,
     type: row.type,
     description: row.description,
-    completed: row.completed,
+    completed,
   };
 }
 
@@ -259,6 +267,7 @@ function LabeledInput({ label, ...props }: LabeledInputProps) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function TimelinePage() {
+  const { user, profile } = useAuth();
   const [filter, setFilter]         = useState<FilterMode>("All");
   const [tasks, setTasks]           = useState<PersonalTask[]>([]);
   const [schools, setSchools]       = useState<SchoolEntry[]>([]);
@@ -278,45 +287,85 @@ export default function TimelinePage() {
   });
 
   useEffect(() => {
+    if (!user) return;
     const supabase = createClient();
     supabase
       .from("activities")
       .select("id, name, category, hours, end_date")
-      .then(({ data, error }) => {
-        if (!error && data) {
-          setTasks(buildActivityTasks(data as ActivityRow[]));
+      .eq("user_id", user.id)
+      .then((res: { data: unknown; error: unknown }) => {
+        const data = res.data as ActivityRow[] | null;
+        const error = res.error;
+        if (!error && data && data.length > 0) {
+          setTasks(buildActivityTasks(data));
+        } else {
+          setTasks(buildActivityTasks(buildProfileActivityRows(profile) as ActivityRow[]));
         }
         setLoadingTasks(false);
       });
-  }, []);
+  }, [user, profile]);
 
   useEffect(() => {
+    if (!user) return;
     const supabase = createClient();
-    supabase
-      .from("application_deadlines")
-      .select("id, key, label, date, system, type, description, completed")
-      .order("date", { ascending: true })
-      .then(({ data, error }) => {
-        if (!error && data) {
-          setMasterDeadlines(data.map((row) => mapDeadlineRow(row as DeadlineRow)));
-        }
-        setLoadingTimeline(false);
-      });
-  }, []);
+    Promise.all([
+      supabase
+        .from("application_deadlines")
+        .select("id, key, label, date, system, type, description")
+        .order("date", { ascending: true }),
+      supabase
+        .from("deadline_progress")
+        .select("deadline_key, completed")
+        .eq("user_id", user.id),
+    ]).then(([dlRes, progRes]) => {
+      if (dlRes.data) {
+        const progressMap = new Map<string, boolean>(
+          ((progRes.data ?? []) as DeadlineProgressRow[]).map((p) => [p.deadline_key, p.completed])
+        );
+        setMasterDeadlines(
+          (dlRes.data as DeadlineRow[]).map((row) =>
+            mapDeadlineRow(row, progressMap.get(row.key) ?? false)
+          )
+        );
+      }
+      setLoadingTimeline(false);
+    });
+  }, [user]);
 
   useEffect(() => {
+    if (!user) return;
     const supabase = createClient();
     supabase
       .from("school_applications")
       .select("id, school_name, school_abbr, system, applied, secondary_received, secondary_submitted, interview_invite, interview_date, decision")
+      .eq("user_id", user.id)
       .order("school_name", { ascending: true })
-      .then(({ data, error }) => {
+      .then((res: { data: unknown; error: unknown }) => {
+        const data = res.data as SchoolApplicationRow[] | null;
+        const error = res.error;
         if (!error && data) {
-          setSchools(data.map((row) => mapSchoolRow(row as SchoolApplicationRow)));
+          setSchools(data.map((row) => mapSchoolRow(row)));
         }
         setLoadingSchools(false);
       });
-  }, []);
+  }, [user]);
+
+  async function toggleDeadline(deadlineKey: string) {
+    if (!user) return;
+    const target = masterDeadlines.find((d) => d.deadlineKey === deadlineKey);
+    if (!target) return;
+    const next = !target.completed;
+    setMasterDeadlines((prev) =>
+      prev.map((d) => (d.deadlineKey === deadlineKey ? { ...d, completed: next } : d))
+    );
+    const supabase = createClient();
+    await supabase
+      .from("deadline_progress")
+      .upsert(
+        { user_id: user.id, deadline_key: deadlineKey, completed: next, updated_at: new Date().toISOString() },
+        { onConflict: "user_id,deadline_key" }
+      );
+  }
 
   // Filtered & grouped timeline
   const filtered = useMemo(() => {
@@ -355,8 +404,9 @@ export default function TimelinePage() {
   }
 
   function addSchool() {
-    if (!draft.name.trim()) return;
+    if (!draft.name.trim() || !user) return;
     const payload = {
+      user_id: user.id,
       school_name: draft.name.trim(),
       school_abbr: draft.abbr.trim() || draft.name.slice(0, 4).toUpperCase(),
       system: draft.system,
@@ -373,9 +423,11 @@ export default function TimelinePage() {
       .insert(payload)
       .select("id, school_name, school_abbr, system, applied, secondary_received, secondary_submitted, interview_invite, interview_date, decision")
       .single()
-      .then(({ data, error }) => {
+      .then((res: { data: unknown; error: unknown }) => {
+        const data = res.data as SchoolApplicationRow | null;
+        const error = res.error;
         if (!error && data) {
-          setSchools((ss) => [...ss, mapSchoolRow(data as SchoolApplicationRow)]);
+          setSchools((ss) => [...ss, mapSchoolRow(data)]);
         }
       });
     setDialogOpen(false);
@@ -482,14 +534,25 @@ export default function TimelinePage() {
                     const isOpen = expanded === d.id;
                     return (
                       <div key={d.id} className="border-b border-white/[0.04] last:border-0">
-                        <button
+                        <div
+                          role="button"
+                          tabIndex={0}
                           onClick={() => setExpanded(isOpen ? null : d.id)}
-                          className="w-full text-left flex items-start gap-3.5 px-5 py-3 hover:bg-white/[0.025] transition-colors"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") setExpanded(isOpen ? null : d.id);
+                          }}
+                          className="w-full cursor-pointer text-left flex items-start gap-3.5 px-5 py-3 hover:bg-white/[0.025] transition-colors"
                         >
-                          {/* Dot */}
-                          <div className="relative flex-shrink-0 z-10 mt-[3px]">
-                            <div className={`w-3 h-3 rounded-full ring-2 ${st.dot} ${st.ring}`} />
-                          </div>
+                          {/* Toggle dot — click to mark complete */}
+                          <button
+                            type="button"
+                            aria-pressed={d.completed}
+                            onClick={(e) => { e.stopPropagation(); toggleDeadline(d.deadlineKey); }}
+                            className="relative flex-shrink-0 z-10 mt-[3px] cursor-pointer"
+                            title={d.completed ? "Mark incomplete" : "Mark complete"}
+                          >
+                            <span className={`block w-3 h-3 rounded-full ring-2 ${st.dot} ${st.ring}`} />
+                          </button>
 
                           <div className="flex-1 min-w-0">
                             <div className="flex flex-wrap items-center gap-2 mb-0.5">
@@ -516,7 +579,7 @@ export default function TimelinePage() {
                               {isOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                             </span>
                           </div>
-                        </button>
+                        </div>
 
                         {isOpen && (
                           <div className="pb-3 pl-[52px] pr-6">
